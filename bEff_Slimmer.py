@@ -144,7 +144,7 @@ def runbbdm(txtfile):
         outfilename = prefix_+txtfile.split('/')[-1].replace('.txt','.root')#"SkimmedTree.root"
         print 'outfilename',  outfilename
 
-    samplename = whichsample(outfilename)
+    #samplename = whichsample(outfilename)
 
 
     #outputfilename = args.outputfile
