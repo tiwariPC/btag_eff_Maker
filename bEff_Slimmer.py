@@ -105,6 +105,8 @@ infilename = "ExoPieElementTuples.root"
 
 debug_ = False
 
+deepCSVMWP = 0.6321
+
 def whichsample(filename):
     sample = -999
     if "TTT" in filename:
