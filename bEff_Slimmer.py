@@ -23,7 +23,10 @@ isCondor = False
 ## user packages
 ## in local dir
 sys.path.append('configs')
+import  triggers as trig
 import variables as branches
+import filters as filters
+import genPtProducer as GenPtProd
 
 ## from commonutils
 if isCondor:sys.path.append('ExoPieUtils/commonutils/')
@@ -101,7 +104,16 @@ if args.outputdir:
 infilename = "ExoPieElementTuples.root"
 
 debug_ = False
-deepCSVMWP = 0.6321
+
+def whichsample(filename):
+    sample = -999
+    if "TTT" in filename:
+        sample = 6
+    elif "WJetsToLNu_HT" in filename:
+        sample = 24
+    elif "ZJetsToNuNu_HT" in filename:
+        sample = 23
+    return sample
 
 def TextToList(textfile):
     return([iline.rstrip()    for iline in open(textfile)])
@@ -132,11 +144,11 @@ def runbbdm(txtfile):
 
     if runInteractive:
         #infile_=txtfile
-        #print "infile_", infile_
+	#print "infile_", infile_
         #ikey_ = txtfile[0].split("/")[-5] ## after the crabConfig bug fix this will become -4
-        #print "ikey_", ikey_
+	#print "ikey_", ikey_
         #outfilename=prefix+ikey_+".root"
-        infile_=TextToList(txtfile)
+	infile_=TextToList(txtfile)
         #print "running code for ",infile_
         prefix_ = '' #'/eos/cms/store/group/phys_exotica/bbMET/2017_skimmedFiles/locallygenerated/'
         if outputdir!='.': prefix_ = outputdir+'/'
@@ -144,7 +156,7 @@ def runbbdm(txtfile):
         outfilename = prefix_+txtfile.split('/')[-1].replace('.txt','.root')#"SkimmedTree.root"
         print 'outfilename',  outfilename
 
-    #samplename = whichsample(outfilename)
+    samplename = whichsample(outfilename)
 
 
     #outputfilename = args.outputfile
@@ -155,16 +167,29 @@ def runbbdm(txtfile):
     h_lighteff_num=TH2D("h_lighteff_num","h_lighteff_num",10,-2.4,2.4,40,20.,2000.)
     h_lighteff_den=TH2D("h_lighteff_den","h_lighteff_den",10,-2.4,2.4,40,20.,2000.)
 
+    if runOn2016:
+        triglist = trig.trigger2016
+    elif runOn2017:
+        triglist = trig.trigger2017
     passfilename = open("configs/outfilename.txt","w")
 
     passfilename.write(outfilename)
     passfilename.close()
+
+    ## this will give some warning, but that is safe,
+    from  outputTree  import *
+
+    ## following can be moved to outputtree.py if we manage to change the name of output root file.
+    outfilenameis = outfilename
+    outfile = TFile(outfilenameis,'RECREATE')
+
+    ## following can be moved to outputtree.py if we manage to change the name of output root file.
+
     if runOn2016:
         jetvariables = branches.allvars2016
     elif runOn2017:
         jetvariables = branches.allvars2017
 
-    ## following can be moved to outputtree.py if we manage to change the name of output root file.
     filename = infile_
 
     ieve = 0;icount = 0
@@ -224,7 +249,7 @@ def runbbdm(txtfile):
                 fatjet_prob_bbvsLight, fatjet_prob_ccvsLight, fatjet_prob_TvsQCD, fatjet_prob_WvsQCD, fatjet_prob_ZHbbvsQCD,\
                 fatjetSDmass, fatN2_Beta1_, fatN2_Beta2_, fatjetCHSPRmassL2L3Corr, fatjetCHSSDmassL2L3Corr\
                 in var_zip:
-            if debug_: print (len(trigName_),len(trigResult_),len(filterName),len(filterResult),len(metUnc_), len(elepx_), len(elepy_), len(elepz_), len(elee_), len(elevetoid_), len(elelooseid_), len(eletightid_), len(eleCharge_), npho_,len(phopx_), len(phopy_), len(phopz_), len(phoe_), len(pholooseid_), len(photightID_), nmu_, len(mupx_), len(mupy_), len(mupz_), len(mue_), len(mulooseid_), len(mutightid_), len(muisoloose), len(muisomedium), len(muisotight), len(muisovtight), len(muCharge_), nTau_, len(tau_px_), len(tau_py_), len(tau_pz_), len(tau_e_), len(tau_dm_), len(tau_isLoose_), len(genParId_), len(genMomParId_), len(genParSt_), len(genpx_), len(genpy_), len(genpz_), len(gene_), len(ak4px_), len(ak4py_), len(ak4pz_), len(ak4e_), len(ak4PassID_), len(ak4deepcsv_), len(ak4flavor_), len(ak4NHEF_), len(ak4CHEF_), len(ak4CEmEF_), len(ak4PhEF_), len(ak4EleEF_), len(ak4MuEF_), len(ak4JEC_), len(fatjetPx), len(fatjetPy), len(fatjetPz), len(fatjetEnergy), len(fatjetPassID), len(fatjet_DoubleSV), len(fatjet_probQCDb), len(fatjet_probHbb), len(fatjet_probQCDc), len(fatjet_probHcc), len(fatjet_probHbbc), len(fatjet_prob_bbvsLight), len(fatjet_prob_ccvsLight), len(fatjet_prob_TvsQCD), len(fatjet_prob_WvsQCD), len(fatjet_prob_ZHbbvsQCD), len(fatjetSDmass), len(fatN2_Beta1_), len(fatN2_Beta2_), len(fatjetCHSPRmassL2L3Corr), len(fatjetCHSSDmassL2L3Corr))
+            if debug_: print len(trigName_),len(trigResult_),len(filterName),len(filterResult),len(metUnc_), len(elepx_), len(elepy_), len(elepz_), len(elee_), len(elevetoid_), len(elelooseid_), len(eletightid_), len(eleCharge_), npho_,len(phopx_), len(phopy_), len(phopz_), len(phoe_), len(pholooseid_), len(photightID_), nmu_, len(mupx_), len(mupy_), len(mupz_), len(mue_), len(mulooseid_), len(mutightid_), len(muisoloose), len(muisomedium), len(muisotight), len(muisovtight), len(muCharge_), nTau_, len(tau_px_), len(tau_py_), len(tau_pz_), len(tau_e_), len(tau_dm_), len(tau_isLoose_), len(genParId_), len(genMomParId_), len(genParSt_), len(genpx_), len(genpy_), len(genpz_), len(gene_), len(ak4px_), len(ak4py_), len(ak4pz_), len(ak4e_), len(ak4PassID_), len(ak4deepcsv_), len(ak4flavor_), len(ak4NHEF_), len(ak4CHEF_), len(ak4CEmEF_), len(ak4PhEF_), len(ak4EleEF_), len(ak4MuEF_), len(ak4JEC_), len(fatjetPx), len(fatjetPy), len(fatjetPz), len(fatjetEnergy), len(fatjetPassID), len(fatjet_DoubleSV), len(fatjet_probQCDb), len(fatjet_probHbb), len(fatjet_probQCDc), len(fatjet_probHcc), len(fatjet_probHbbc), len(fatjet_prob_bbvsLight), len(fatjet_prob_ccvsLight), len(fatjet_prob_TvsQCD), len(fatjet_prob_WvsQCD), len(fatjet_prob_ZHbbvsQCD), len(fatjetSDmass), len(fatN2_Beta1_), len(fatN2_Beta2_), len(fatjetCHSPRmassL2L3Corr), len(fatjetCHSSDmassL2L3Corr)
 
             if ieve%1000==0: print "Processed",ieve,"Events"
             ieve = ieve + 1
@@ -239,11 +264,51 @@ def runbbdm(txtfile):
             h_total.Fill(1.);
             h_total_mcweight.Fill(1.,mcweight[0]);
 
+            # -------------------------------------------------
+            ## Trigger selection
+            # -------------------------------------------------
+
+            eletrigdecision=False
+            mudecision=False
+            metdecision=False
+            phodecision=False
+
+            eletrigstatus = [( anautil.CheckFilter(trigName_, trigResult_, trig.Electrontrigger2017[itrig] ) ) for itrig in range(len(trig.Electrontrigger2017))]
+            mutrigstatus  = [( anautil.CheckFilter(trigName_, trigResult_, trig.Muontrigger2017[itrig]     ) ) for itrig in range(len(trig.Muontrigger2017))    ]
+            mettrigstatus = [( anautil.CheckFilter(trigName_, trigResult_, trig.METtrigger2017[itrig]       ) ) for itrig in range(len(trig.METtrigger2017))     ]
+            photrigstatus = [( anautil.CheckFilter(trigName_, trigResult_, trig.Photontrigger2017[itrig]   ) ) for itrig in range(len(trig.Photontrigger2017))  ]
+
+            eletrigdecision = boolutil.logical_OR(eletrigstatus)
+            mutrigdecision  = boolutil.logical_OR(mutrigstatus)
+            mettrigdecision = boolutil.logical_OR(mettrigstatus)
+            photrigdecision = boolutil.logical_OR(photrigstatus)
+
+            if not isData:
+                eletrigdecision = True
+                mutrigdecision = True
+                mettrigdecision = True
+                photrigdecision = True
+
+
+            # ------------------------------------------------------
+            ## Filter selection
+            # ------------------------------------------------------
+            filterdecision=False
+            filterstatus = [False for ifilter in range(len(filters.filters2017)) ]
+            filterstatus = [anautil.CheckFilter(filterName, filterResult, filters.filters2017[ifilter]) for ifilter in range(len(filters.filters2017)) ]
+
+
+            if not isData:     filterdecision = True
+            if isData:         filterdecision  = boolutil.logical_AND(filterstatus)
+
+            if filterdecision == False: continue
+
+
 
             # ------------------------------------------------------
             ## PFMET Selection
             # --------------------------------------------------------
-            pfmetstatus = ( met_ > 200.0 )
+            pfmetstatus = ( met_ > 170.0 )
 
             '''
             *******   *      *   ******
@@ -256,7 +321,7 @@ def runbbdm(txtfile):
             phopt = [getPt(phopx_[ip], phopy_[ip]) for ip in range(npho_)]
             phoeta = [getEta(phopx_[ip], phopy_[ip], phopz_[ip]) for ip in range(npho_)]
 
-            pho_pt15_eta2p5_looseID = [ (phopt[ip] > 15.0) and (abs(phoeta[ip]) < 2.5) and (pholooseid_[ip]) for ip in range(npho_)]
+            pho_pt15_eta2p5_looseID = [ (phopt[ip] > 15.0) and (abs(phoeta[ip]) < 2.5) and (pholooseid_[ip])               for ip in range(npho_)]
             pass_pho_index = boolutil.WhereIsTrue(pho_pt15_eta2p5_looseID)
 
             '''
@@ -319,6 +384,32 @@ def runbbdm(txtfile):
                 pass_jet_index_cleaned = boolutil.WhereIsTrue(jetCleaned)
                 if debug_:print "pass_jet_index_cleaned = ", pass_jet_index_cleaned,"nJets= ",len(ak4px_)
 
+            '''
+            ******      *******   *****   *******
+            *              *      *          *
+            *****  ----    *      ****       *
+            *              *      *          *
+            *           ***       *****      *
+
+            '''
+            fatjetpt = [getPt(fatjetPx[ij], fatjetPy[ij]) for ij in range(fatnJet)]
+            fatjeteta = [getEta(fatjetPx[ij], fatjetPy[ij], fatjetPz[ij]) for ij in range(fatnJet)]
+            fatjetphi = [getPhi(fatjetPx[ij], fatjetPy[ij]) for ij in range(fatnJet)]
+
+            fatjet_pt200_eta2p5_IDT  = [ ( (fatjetpt[ij] > 200.0) and (abs(fatjeteta[ij]) < 2.5) and (fatjetPassID[ij] ) ) for ij in range(fatnJet)]
+
+            ##--- fat jet cleaning
+            fatjetCleanAgainstEle = []
+            fatjetCleanAgainstMu = []
+            pass_fatjet_index_cleaned = []
+
+
+            if len(fatjet_pt200_eta2p5_IDT) > 0:
+                fatjetCleanAgainstEle = anautil.jetcleaning(fatjet_pt200_eta2p5_IDT, ele_pt10_eta2p5_vetoID, fatjeteta, eleeta, fatjetphi, elephi, DRCut)
+                fatjetCleanAgainstMu  = anautil.jetcleaning(fatjet_pt200_eta2p5_IDT, mu_pt10_eta2p4_looseID_looseISO, fatjeteta, mueta, fatjetphi, muphi, DRCut)
+                fatjetCleaned = boolutil.logical_AND_List3(fatjet_pt200_eta2p5_IDT, fatjetCleanAgainstEle, fatjetCleanAgainstMu)
+                pass_fatjet_index_cleaned = boolutil.WhereIsTrue(fatjetCleaned)
+                if debug_:print "pass_fatjet_index_cleaned = ", pass_fatjet_index_cleaned," nJets =   ",len(fatjetpx)
 
             '''
             ********    *        *       *
@@ -355,8 +446,6 @@ def runbbdm(txtfile):
                 pass_tau_index_cleaned_DRBased = boolutil.WhereIsTrue(tauCleaned)
                 if debug_:print "pass_tau_index_cleaned_DRBased",pass_tau_index_cleaned_DRBased
 
-            # -------------------------------------------------------------
-
             ## Fill variables for the CRs.
             WenuRecoil[0] = -1.0
             Wenumass[0] = -1.0
@@ -390,7 +479,7 @@ def runbbdm(txtfile):
                     zeeRecoilPx = -( met_*math.cos(metphi_) + elepx_[iele1] + elepx_[iele2])
                     zeeRecoilPy = -( met_*math.sin(metphi_) + elepy_[iele1] + elepy_[iele2])
                     ZeeRecoilPt =  math.sqrt(zeeRecoilPx**2  +  zeeRecoilPy**2)
-                    if ee_mass > 60.0 and ee_mass < 110.0 and ZeeRecoilPt > 200.:
+                    if ee_mass > 60.0 and ee_mass < 110.0 and ZeeRecoilPt > 170.:
                         ZeeRecoil[0] = ZeeRecoilPt
                         ZeeMass[0] = ee_mass
                         ZeePhi[0] = mathutil.ep_arctan(zeeRecoilPx,zeeRecoilPy)
@@ -403,14 +492,14 @@ def runbbdm(txtfile):
                     zmumuRecoilPx = -( met_*math.cos(metphi_) + mupx_[imu1] + mupx_[imu2])
                     zmumuRecoilPy = -( met_*math.sin(metphi_) + mupy_[imu1] + mupy_[imu2])
                     ZmumuRecoilPt =  math.sqrt(zmumuRecoilPx**2  +  zmumuRecoilPy**2)
-                    if mumu_mass > 60.0 and mumu_mass < 110.0 and ZmumuRecoilPt > 200.:
+                    if mumu_mass > 60.0 and mumu_mass < 110.0 and ZmumuRecoilPt > 170.:
                         ZmumuRecoil[0] = ZmumuRecoilPt
                         ZmumuMass[0] = mumu_mass
                         ZmumuPhi[0] = mathutil.ep_arctan(zmumuRecoilPx,zmumuRecoilPy)
             if len(pass_ele_veto_index) == 2:
-                ZRecoilstatus =(ZeeRecoil[0] > 200)
+                ZRecoilstatus =(ZeeRecoil[0] > 170)
             elif len(pass_mu_index) == 2:
-                ZRecoilstatus =(ZmumuRecoil[0] > 200)
+                ZRecoilstatus =(ZmumuRecoil[0] > 170)
             else:
                 ZRecoilstatus=False
             if debug_: print 'Reached Z CR'
@@ -425,7 +514,7 @@ def runbbdm(txtfile):
                WenuRecoilPx = -( met_*math.cos(metphi_) + elepx_[ele1])
                WenuRecoilPy = -( met_*math.sin(metphi_) + elepy_[ele1])
                WenuRecoilPt = math.sqrt(WenuRecoilPx**2  +  WenuRecoilPy**2)
-               if WenuRecoilPt > 200.:
+               if WenuRecoilPt > 170.:
                    WenuRecoil[0] = WenuRecoilPt
                    Wenumass[0] = e_mass
                    WenuPhi[0] = mathutil.ep_arctan(WenuRecoilPx,WenuRecoilPy)
@@ -436,14 +525,14 @@ def runbbdm(txtfile):
                WmunuRecoilPx = -( met_*math.cos(metphi_) + mupx_[mu1])
                WmunuRecoilPy = -( met_*math.sin(metphi_) + mupy_[mu1])
                WmunuRecoilPt = math.sqrt(WmunuRecoilPx**2  +  WmunuRecoilPy**2)
-               if WmunuRecoilPt > 200.:
+               if WmunuRecoilPt > 170.:
                    WmunuRecoil[0] = WmunuRecoilPt
                    Wmunumass[0] = mu_mass
                    WmunuPhi[0] = mathutil.ep_arctan(WmunuRecoilPx,WmunuRecoilPy)
             if len(pass_ele_veto_index) == 1:
-                WRecoilstatus =(WenuRecoil[0] > 200)
+                WRecoilstatus =(WenuRecoil[0] > 170)
             elif len(pass_mu_index) == 1:
-                WRecoilstatus =(WmunuRecoil[0] > 200)
+                WRecoilstatus =(WmunuRecoil[0] > 170)
             else:
                 WRecoilstatus=False
             if debug_: print 'Reached W CR'
@@ -457,14 +546,12 @@ def runbbdm(txtfile):
                GammaRecoilPx = -( met_*math.cos(metphi_) + phopx_[pho1])
                GammaRecoilPy = -( met_*math.sin(metphi_) + phopy_[pho1])
                GammaRecoilPt = math.sqrt(GammaRecoilPx**2  +  GammaRecoilPy**2)
-               if GammaRecoilPt > 200.:
+               if GammaRecoilPt > 170.:
                    GammaRecoil[0] = GammaRecoilPt
                    GammaPhi[0] = mathutil.ep_arctan(GammaRecoilPx,GammaRecoilPy)
-            GammaRecoilStatus = (GammaRecoil[0] > 200)
+            GammaRecoilStatus = (GammaRecoil[0] > 170)
             if debug_: print 'Reached Gamma CR'
             if pfmetstatus==False and ZRecoilstatus==False and WRecoilstatus==False and GammaRecoilStatus==False: continue
-
-            st_THINnJet[0] = len(pass_jet_index_cleaned)
             for ithinjet in pass_jet_index_cleaned:
                 if ak4flavor_[ithinjet]==5:
                     h_beff_den.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
@@ -473,7 +560,7 @@ def runbbdm(txtfile):
                         h_beff_num.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
                     else:
                         h_lighteff_num.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
-            if debug_:print 'njets: ',len(pass_jet_index_cleaned)
+
     #outfile = TFile(outfilenameis,'RECREATE')
     outfile.cd()
     h_total_mcweight.Write()
