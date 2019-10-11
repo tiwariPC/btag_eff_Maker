@@ -165,7 +165,6 @@ def runbbdm(txtfile):
         jetvariables = branches.allvars2017
 
     ## following can be moved to outputtree.py if we manage to change the name of output root file.
-    jetvariables = branches.allvars
     filename = infile_
 
     ieve = 0;icount = 0
