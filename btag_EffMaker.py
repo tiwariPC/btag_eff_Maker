@@ -21,18 +21,18 @@ datestr = datetime.datetime.now().strftime("%I%p%Y%m%d")
 # In[2]:
 
 
-inputFilename = 'Btageff_Output.root'
+inputFilename = 'BtagEff_Output.root'
 inputFile = TFile(inputFilename, 'READ')
 outputFilename = 'btag_eff_forweight.root'
 outputFile = TFile(outputFilename, 'RECREATE')
-  
-for partonFlavor in ['b','light']:
+
+for partonFlavor in ['b','c','light']:
     denominatorIn = inputFile.Get('h_'+partonFlavor+'eff_den')
-    numeratorIn = inputFile.Get('h_'+partonFlavor+'eff_num')
-    
+    numeratorIn = inputFile.Get('h_'+partonFlavor+'eff_num_pass')
+
     xShift = denominatorIn.GetXaxis().GetBinWidth(1)/2.
     yShift = denominatorIn.GetYaxis().GetBinWidth(1)/2.
-    
+
     denominatorOut = TH2D('denominator_' + partonFlavor, '', 10,-2.4,2.4,20,20.,1000.)
     numeratorOut   = TH2D('numerator_' + partonFlavor, '', 10,-2.4,2.4,20,20.,1000.)
     efficiencyOut  = TH2D('efficiency_' + partonFlavor, '', 10,-2.4,2.4,20,20.,1000.)
@@ -85,4 +85,3 @@ outputFile.Close()
 print ('-------------------------------------------------------------------------------------------')
 print ('successfully created and stored in %s'%outputFilename)
 print ('')
-
