@@ -18,7 +18,7 @@ from multiprocessing import Process
 import multiprocessing as mp
 
 
-isCondor = False
+isCondor = True
 
 ## user packages
 ## in local dir
@@ -164,9 +164,14 @@ def runbbdm(txtfile):
     #outputfilename = args.outputfile
     h_total = TH1F('h_total','h_total',2,0,2)
     h_total_mcweight = TH1F('h_total_mcweight','h_total_mcweight',2,0,2)
-    h_beff_num=TH2D("h_beff_num","h_beff_num_",10,-2.4,2.4,40,20.,2000.)
+    h_beff_num_pass=TH2D("h_beff_num_pass","h_beff_num_pass",10,-2.4,2.4,40,20.,2000.)
+    h_beff_num_fail=TH2D("h_beff_num_fail","h_beff_num_fail",10,-2.4,2.4,40,20.,2000.)
     h_beff_den=TH2D("h_beff_den","h_beff_den",10,-2.4,2.4,40,20.,2000.)
-    h_lighteff_num=TH2D("h_lighteff_num","h_lighteff_num",10,-2.4,2.4,40,20.,2000.)
+    h_ceff_num_pass=TH2D("h_ceff_num_pass","h_ceff_num_pass",10,-2.4,2.4,40,20.,2000.)
+    h_ceff_num_pass=TH2D("h_ceff_num_pass","h_ceff_num_pass",10,-2.4,2.4,40,20.,2000.)
+    h_ceff_den=TH2D("h_ceff_den","h_ceff_den",10,-2.4,2.4,40,20.,2000.)
+    h_lighteff_num_pass=TH2D("h_lighteff_num_pass","h_lighteff_num_pass",10,-2.4,2.4,40,20.,2000.)
+    h_lighteff_num_fail=TH2D("h_lighteff_num_fail","h_lighteff_num_fail",10,-2.4,2.4,40,20.,2000.)
     h_lighteff_den=TH2D("h_lighteff_den","h_lighteff_den",10,-2.4,2.4,40,20.,2000.)
 
     if runOn2016:
@@ -310,7 +315,7 @@ def runbbdm(txtfile):
             # ------------------------------------------------------
             ## PFMET Selection
             # --------------------------------------------------------
-            pfmetstatus = ( met_ > 170.0 )
+            pfmetstatus = ( met_ > 200. )
 
             '''
             *******   *      *   ******
@@ -481,7 +486,7 @@ def runbbdm(txtfile):
                     zeeRecoilPx = -( met_*math.cos(metphi_) + elepx_[iele1] + elepx_[iele2])
                     zeeRecoilPy = -( met_*math.sin(metphi_) + elepy_[iele1] + elepy_[iele2])
                     ZeeRecoilPt =  math.sqrt(zeeRecoilPx**2  +  zeeRecoilPy**2)
-                    if ee_mass > 60.0 and ee_mass < 110.0 and ZeeRecoilPt > 170.:
+                    if ee_mass > 60.0 and ee_mass < 110.0 and ZeeRecoilPt > 200.:
                         ZeeRecoil[0] = ZeeRecoilPt
                         ZeeMass[0] = ee_mass
                         ZeePhi[0] = mathutil.ep_arctan(zeeRecoilPx,zeeRecoilPy)
@@ -494,14 +499,14 @@ def runbbdm(txtfile):
                     zmumuRecoilPx = -( met_*math.cos(metphi_) + mupx_[imu1] + mupx_[imu2])
                     zmumuRecoilPy = -( met_*math.sin(metphi_) + mupy_[imu1] + mupy_[imu2])
                     ZmumuRecoilPt =  math.sqrt(zmumuRecoilPx**2  +  zmumuRecoilPy**2)
-                    if mumu_mass > 60.0 and mumu_mass < 110.0 and ZmumuRecoilPt > 170.:
+                    if mumu_mass > 60.0 and mumu_mass < 110.0 and ZmumuRecoilPt > 200.:
                         ZmumuRecoil[0] = ZmumuRecoilPt
                         ZmumuMass[0] = mumu_mass
                         ZmumuPhi[0] = mathutil.ep_arctan(zmumuRecoilPx,zmumuRecoilPy)
             if len(pass_ele_veto_index) == 2:
-                ZRecoilstatus =(ZeeRecoil[0] > 170)
+                ZRecoilstatus =(ZeeRecoil[0] > 200.)
             elif len(pass_mu_index) == 2:
-                ZRecoilstatus =(ZmumuRecoil[0] > 170)
+                ZRecoilstatus =(ZmumuRecoil[0] > 200.)
             else:
                 ZRecoilstatus=False
             if debug_: print 'Reached Z CR'
@@ -516,7 +521,7 @@ def runbbdm(txtfile):
                WenuRecoilPx = -( met_*math.cos(metphi_) + elepx_[ele1])
                WenuRecoilPy = -( met_*math.sin(metphi_) + elepy_[ele1])
                WenuRecoilPt = math.sqrt(WenuRecoilPx**2  +  WenuRecoilPy**2)
-               if WenuRecoilPt > 170.:
+               if WenuRecoilPt > 200.:
                    WenuRecoil[0] = WenuRecoilPt
                    Wenumass[0] = e_mass
                    WenuPhi[0] = mathutil.ep_arctan(WenuRecoilPx,WenuRecoilPy)
@@ -527,14 +532,14 @@ def runbbdm(txtfile):
                WmunuRecoilPx = -( met_*math.cos(metphi_) + mupx_[mu1])
                WmunuRecoilPy = -( met_*math.sin(metphi_) + mupy_[mu1])
                WmunuRecoilPt = math.sqrt(WmunuRecoilPx**2  +  WmunuRecoilPy**2)
-               if WmunuRecoilPt > 170.:
+               if WmunuRecoilPt > 200.:
                    WmunuRecoil[0] = WmunuRecoilPt
                    Wmunumass[0] = mu_mass
                    WmunuPhi[0] = mathutil.ep_arctan(WmunuRecoilPx,WmunuRecoilPy)
             if len(pass_ele_veto_index) == 1:
-                WRecoilstatus =(WenuRecoil[0] > 170)
+                WRecoilstatus =(WenuRecoil[0] > 200.)
             elif len(pass_mu_index) == 1:
-                WRecoilstatus =(WmunuRecoil[0] > 170)
+                WRecoilstatus =(WmunuRecoil[0] > 200.)
             else:
                 WRecoilstatus=False
             if debug_: print 'Reached W CR'
@@ -548,29 +553,51 @@ def runbbdm(txtfile):
                GammaRecoilPx = -( met_*math.cos(metphi_) + phopx_[pho1])
                GammaRecoilPy = -( met_*math.sin(metphi_) + phopy_[pho1])
                GammaRecoilPt = math.sqrt(GammaRecoilPx**2  +  GammaRecoilPy**2)
-               if GammaRecoilPt > 170.:
+               if GammaRecoilPt > 200.:
                    GammaRecoil[0] = GammaRecoilPt
                    GammaPhi[0] = mathutil.ep_arctan(GammaRecoilPx,GammaRecoilPy)
-            GammaRecoilStatus = (GammaRecoil[0] > 170)
+            GammaRecoilStatus = (GammaRecoil[0] > 200.)
             if debug_: print 'Reached Gamma CR'
+
+
             if pfmetstatus==False and ZRecoilstatus==False and WRecoilstatus==False and GammaRecoilStatus==False: continue
             for ithinjet in pass_jet_index_cleaned:
                 if ak4flavor_[ithinjet]==5:
                     h_beff_den.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                    if ak4deepcsv_[ithinjet] > deepCSVMWP:
+                        h_beff_num_pass.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                    else:
+                        h_beff_num_fail.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+
+                if ak4flavor_[ithinjet]==4:
+                    h_ceff_den.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                    if ak4deepcsv_[ithinjet] > deepCSVMWP:
+                        h_ceff_num_pass.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                    else:
+                        h_ceff_num_fail.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+
+                if ak4flavor_[ithinjet]!=4 and ak4flavor_[ithinjet]!=5:
                     h_lighteff_den.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
                     if ak4deepcsv_[ithinjet] > deepCSVMWP:
-                        h_beff_num.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                        h_lighteff_num_pass.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
                     else:
-                        h_lighteff_num.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                        h_lighteff_num_fail.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
 
     #outfile = TFile(outfilenameis,'RECREATE')
     outfile.cd()
     h_total_mcweight.Write()
     h_total.Write()
     h_beff_den.Write()
+    h_ceff_den.Write()
     h_lighteff_den.Write()
-    h_beff_num.Write()
-    h_lighteff_num.Write()
+
+    h_beff_num_pass.Write()
+    h_ceff_num_pass.Write()
+    h_lighteff_num_pass.Write()
+
+    h_beff_num_fail.Write()
+    h_ceff_num_fail.Write()
+    h_lighteff_num_fail.Write()
     outfile.Write()
     print "output written to ", outfilename
     end = time.clock()
