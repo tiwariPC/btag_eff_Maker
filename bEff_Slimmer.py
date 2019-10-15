@@ -168,7 +168,7 @@ def runbbdm(txtfile):
     h_beff_num_fail=TH2D("h_beff_num_fail","h_beff_num_fail",10,-2.4,2.4,40,20.,2000.)
     h_beff_den=TH2D("h_beff_den","h_beff_den",10,-2.4,2.4,40,20.,2000.)
     h_ceff_num_pass=TH2D("h_ceff_num_pass","h_ceff_num_pass",10,-2.4,2.4,40,20.,2000.)
-    h_ceff_num_pass=TH2D("h_ceff_num_pass","h_ceff_num_pass",10,-2.4,2.4,40,20.,2000.)
+    h_ceff_num_fail=TH2D("h_ceff_num_fail","h_ceff_num_fail",10,-2.4,2.4,40,20.,2000.)
     h_ceff_den=TH2D("h_ceff_den","h_ceff_den",10,-2.4,2.4,40,20.,2000.)
     h_lighteff_num_pass=TH2D("h_lighteff_num_pass","h_lighteff_num_pass",10,-2.4,2.4,40,20.,2000.)
     h_lighteff_num_fail=TH2D("h_lighteff_num_fail","h_lighteff_num_fail",10,-2.4,2.4,40,20.,2000.)
