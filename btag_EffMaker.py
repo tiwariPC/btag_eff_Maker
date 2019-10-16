@@ -28,7 +28,7 @@ outputFile = TFile(outputFilename, 'RECREATE')
 
 for partonFlavor in ['b','c','light']:
     denominatorIn = inputFile.Get('h_'+partonFlavor+'eff_den')
-    numeratorIn = inputFile.Get('h_'+partonFlavor+'eff_num_pass')
+    numeratorIn = inputFile.Get('h_'+partonFlavor+'eff_mWP_num_pass')
 
     xShift = denominatorIn.GetXaxis().GetBinWidth(1)/2.
     yShift = denominatorIn.GetYaxis().GetBinWidth(1)/2.

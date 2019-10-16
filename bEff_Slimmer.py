@@ -104,9 +104,10 @@ if args.outputdir:
 infilename = "ExoPieElementTuples.root"
 
 debug_ = False
-
+#please provide the latest recommended working points from https://twiki.cern.ch/twiki/bin/viewauth/CMS/BtagRecommendation
+deepCSVLWP = 0.2217
 deepCSVMWP = 0.6321
-
+deepCSVTWP = 0.8953
 def whichsample(filename):
     sample = -999
     if "TTT" in filename:
@@ -164,15 +165,34 @@ def runbbdm(txtfile):
     #outputfilename = args.outputfile
     h_total = TH1F('h_total','h_total',2,0,2)
     h_total_mcweight = TH1F('h_total_mcweight','h_total_mcweight',2,0,2)
-    h_beff_num_pass=TH2D("h_beff_num_pass","h_beff_num_pass",10,-2.4,2.4,40,20.,2000.)
-    h_beff_num_fail=TH2D("h_beff_num_fail","h_beff_num_fail",10,-2.4,2.4,40,20.,2000.)
-    h_beff_den=TH2D("h_beff_den","h_beff_den",10,-2.4,2.4,40,20.,2000.)
-    h_ceff_num_pass=TH2D("h_ceff_num_pass","h_ceff_num_pass",10,-2.4,2.4,40,20.,2000.)
-    h_ceff_num_fail=TH2D("h_ceff_num_fail","h_ceff_num_fail",10,-2.4,2.4,40,20.,2000.)
-    h_ceff_den=TH2D("h_ceff_den","h_ceff_den",10,-2.4,2.4,40,20.,2000.)
-    h_lighteff_num_pass=TH2D("h_lighteff_num_pass","h_lighteff_num_pass",10,-2.4,2.4,40,20.,2000.)
-    h_lighteff_num_fail=TH2D("h_lighteff_num_fail","h_lighteff_num_fail",10,-2.4,2.4,40,20.,2000.)
-    h_lighteff_den=TH2D("h_lighteff_den","h_lighteff_den",10,-2.4,2.4,40,20.,2000.)
+
+    h_beff_den=TH2D("h_beff_den","h_beff_den",10,-2.5,2.5,150,20.,3000.)
+    h_ceff_den=TH2D("h_ceff_den","h_ceff_den",10,-2.5,2.5,150,20.,3000.)
+    h_lighteff_den=TH2D("h_lighteff_den","h_lighteff_den",10,-2.5,2.5,150,20.,3000.)
+
+    h_beff_lWP_num_pass=TH2D("h_beff_lWP_num_pass","h_beff_lWP_num_pass",10,-2.5,2.5,150,20.,3000.)
+    h_ceff_lWP_num_pass=TH2D("h_ceff_lWP_num_pass","h_ceff_lWP_num_pass",10,-2.5,2.5,150,20.,3000.)
+    h_lighteff_lWP_num_pass=TH2D("h_lighteff_lWP_num_pass","h_lighteff_lWP_num_pass",10,-2.5,2.5,150,20.,3000.)
+
+    h_beff_lWP_num_fail=TH2D("h_beff_lWP_num_fail","h_beff_lWP_num_fail",10,-2.5,2.5,150,20.,3000.)
+    h_ceff_lWP_num_fail=TH2D("h_ceff_lWP_num_fail","h_ceff_lWP_num_fail",10,-2.5,2.5,150,20.,3000.)
+    h_lighteff_lWP_num_fail=TH2D("h_lighteff_lWP_num_fail","h_lighteff_lWP_num_fail",10,-2.5,2.5,150,20.,3000.)
+
+    h_beff_mWP_num_pass=TH2D("h_beff_mWP_num_pass","h_beff_mWP_num_pass",10,-2.5,2.5,150,20.,3000.)
+    h_ceff_mWP_num_pass=TH2D("h_ceff_mWP_num_pass","h_ceff_mWP_num_pass",10,-2.5,2.5,150,20.,3000.)
+    h_lighteff_mWP_num_pass=TH2D("h_lighteff_mWP_num_pass","h_lighteff_mWP_num_pass",10,-2.5,2.5,150,20.,3000.)
+
+    h_beff_mWP_num_fail=TH2D("h_beff_mWP_num_fail","h_beff_mWP_num_fail",10,-2.5,2.5,150,20.,3000.)
+    h_ceff_mWP_num_fail=TH2D("h_ceff_mWP_num_fail","h_ceff_mWP_num_fail",10,-2.5,2.5,150,20.,3000.)
+    h_lighteff_mWP_num_fail=TH2D("h_lighteff_mWP_num_fail","h_lighteff_mWP_num_fail",10,-2.5,2.5,150,20.,3000.)
+
+    h_beff_tWP_num_pass=TH2D("h_beff_tWP_num_pass","h_beff_tWP_num_pass",10,-2.5,2.5,150,20.,3000.)
+    h_ceff_tWP_num_pass=TH2D("h_ceff_tWP_num_pass","h_ceff_tWP_num_pass",10,-2.5,2.5,150,20.,3000.)
+    h_lighteff_tWP_num_pass=TH2D("h_lighteff_tWP_num_pass","h_lighteff_tWP_num_pass",10,-2.5,2.5,150,20.,3000.)
+
+    h_beff_tWP_num_fail=TH2D("h_beff_tWP_num_fail","h_beff_tWP_num_fail",10,-2.5,2.5,150,20.,3000.)
+    h_ceff_tWP_num_fail=TH2D("h_ceff_tWP_num_fail","h_ceff_tWP_num_fail",10,-2.5,2.5,150,20.,3000.)
+    h_lighteff_tWP_num_fail=TH2D("h_lighteff_tWP_num_fail","h_lighteff_tWP_num_fail",10,-2.5,2.5,150,20.,3000.)
 
     if runOn2016:
         triglist = trig.trigger2016
@@ -564,24 +584,54 @@ def runbbdm(txtfile):
             for ithinjet in pass_jet_index_cleaned:
                 if ak4flavor_[ithinjet]==5:
                     h_beff_den.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
-                    if ak4deepcsv_[ithinjet] > deepCSVMWP:
-                        h_beff_num_pass.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                    if ak4deepcsv_[ithinjet] > deepCSVLWP:
+                        h_beff_lWP_num_pass.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
                     else:
-                        h_beff_num_fail.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                        h_beff_lWP_num_fail.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+
+                    if ak4deepcsv_[ithinjet] > deepCSVMWP:
+                        h_beff_mWP_num_pass.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                    else:
+                        h_beff_mWP_num_fail.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+
+                    if ak4deepcsv_[ithinjet] > deepCSVTWP:
+                        h_beff_tWP_num_pass.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                    else:
+                        h_beff_tWP_num_fail.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
 
                 if ak4flavor_[ithinjet]==4:
                     h_ceff_den.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
-                    if ak4deepcsv_[ithinjet] > deepCSVMWP:
-                        h_ceff_num_pass.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                    if ak4deepcsv_[ithinjet] > deepCSVLWP:
+                        h_ceff_lWP_num_pass.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
                     else:
-                        h_ceff_num_fail.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                        h_ceff_lWP_num_fail.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+
+                    if ak4deepcsv_[ithinjet] > deepCSVMWP:
+                        h_ceff_mWP_num_pass.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                    else:
+                        h_ceff_mWP_num_fail.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+
+                    if ak4deepcsv_[ithinjet] > deepCSVTWP:
+                        h_ceff_tWP_num_pass.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                    else:
+                        h_ceff_tWP_num_fail.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
 
                 if ak4flavor_[ithinjet]!=4 and ak4flavor_[ithinjet]!=5:
                     h_lighteff_den.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
-                    if ak4deepcsv_[ithinjet] > deepCSVMWP:
-                        h_lighteff_num_pass.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                    if ak4deepcsv_[ithinjet] > deepCSVLWP:
+                        h_lighteff_lWP_num_pass.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
                     else:
-                        h_lighteff_num_fail.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                        h_lighteff_lWP_num_fail.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+
+                    if ak4deepcsv_[ithinjet] > deepCSVMWP:
+                        h_lighteff_mWP_num_pass.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                    else:
+                        h_lighteff_mWP_num_fail.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+
+                    if ak4deepcsv_[ithinjet] > deepCSVTWP:
+                        h_lighteff_tWP_num_pass.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                    else:
+                        h_lighteff_tWP_num_fail.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
 
     #outfile = TFile(outfilenameis,'RECREATE')
     outfile.cd()
@@ -591,13 +641,27 @@ def runbbdm(txtfile):
     h_ceff_den.Write()
     h_lighteff_den.Write()
 
-    h_beff_num_pass.Write()
-    h_ceff_num_pass.Write()
-    h_lighteff_num_pass.Write()
+    h_beff_lWP_num_pass.Write()
+    h_ceff_lWP_num_pass.Write()
+    h_lighteff_lWP_num_pass.Write()
+    h_beff_lWP_num_fail.Write()
+    h_ceff_lWP_num_fail.Write()
+    h_lighteff_lWP_num_fail.Write()
 
-    h_beff_num_fail.Write()
-    h_ceff_num_fail.Write()
-    h_lighteff_num_fail.Write()
+    h_beff_mWP_num_pass.Write()
+    h_ceff_mWP_num_pass.Write()
+    h_lighteff_mWP_num_pass.Write()
+    h_beff_mWP_num_fail.Write()
+    h_ceff_mWP_num_fail.Write()
+    h_lighteff_mWP_num_fail.Write()
+
+    h_beff_tWP_num_pass.Write()
+    h_ceff_tWP_num_pass.Write()
+    h_lighteff_tWP_num_pass.Write()
+    h_beff_tWP_num_fail.Write()
+    h_ceff_tWP_num_fail.Write()
+    h_lighteff_tWP_num_fail.Write()
+
     outfile.Write()
     print "output written to ", outfilename
     end = time.clock()
