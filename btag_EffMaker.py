@@ -21,9 +21,9 @@ datestr = datetime.datetime.now().strftime("%I%p%Y%m%d")
 # In[2]:
 
 
-inputFilename = 'BtagEff_Output.root'
+inputFilename = 'BtagEff_Intput.root'
 inputFile = TFile(inputFilename, 'READ')
-outputFilename = 'btag_eff_forweight.root'
+outputFilename = 'bTagEffs_2016.root'
 outputFile = TFile(outputFilename, 'RECREATE')
 
 for partonFlavor in ['b','c','light']:
@@ -33,9 +33,9 @@ for partonFlavor in ['b','c','light']:
     xShift = denominatorIn.GetXaxis().GetBinWidth(1)/2.
     yShift = denominatorIn.GetYaxis().GetBinWidth(1)/2.
 
-    denominatorOut = TH2D('denominator_' + partonFlavor, '', 10,-2.4,2.4,20,20.,1000.)
-    numeratorOut   = TH2D('numerator_' + partonFlavor, '', 10,-2.4,2.4,20,20.,1000.)
-    efficiencyOut  = TH2D('efficiency_' + partonFlavor, '', 10,-2.4,2.4,20,20.,1000.)
+    denominatorOut = TH2D('denominator_' + partonFlavor, '', 10,-2.4,2.4,40,20.,2000.)
+    numeratorOut   = TH2D('numerator_' + partonFlavor, '', 10,-2.4,2.4,40,20.,2000.)
+    efficiencyOut  = TH2D('efficiency_' + partonFlavor, '', 10,-2.4,2.4,40,20.,2000.)
 
     for i in range(1,denominatorOut.GetXaxis().GetNbins()+1):
       for j in range(1,denominatorOut.GetYaxis().GetNbins()+1):
