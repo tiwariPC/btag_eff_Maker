@@ -105,9 +105,15 @@ infilename = "ExoPieElementTuples.root"
 
 debug_ = False
 #please provide the latest recommended working points from https://twiki.cern.ch/twiki/bin/viewauth/CMS/BtagRecommendation
-deepCSVLWP = 0.2217
-deepCSVMWP = 0.6321
-deepCSVTWP = 0.8953
+if runOn2016:
+    deepCSVLWP = 0.2217
+    deepCSVMWP = 0.6321
+    deepCSVTWP = 0.8953
+if runOn2017:
+    deepCSVLWP = 0.1522
+    deepCSVMWP = 0.4941
+    deepCSVTWP = 0.8001
+
 def whichsample(filename):
     sample = -999
     if "TTT" in filename:
