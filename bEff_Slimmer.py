@@ -168,7 +168,6 @@ def runbbdm(txtfile):
     samplename = whichsample(outfilename)
     binning = [20.,30.,40.,50.,60.,70.,80.,90.,100.,125.,150.,200.,250.,300.,400.,500.,670.,1000.,1500.,2000.,3000]
     nBins = len(binning) -1
-     array('d',binning)
     #outputfilename = args.outputfile
     h_total = TH1F('h_total','h_total',2,0,2)
     h_total_mcweight = TH1F('h_total_mcweight','h_total_mcweight',2,0,2)
