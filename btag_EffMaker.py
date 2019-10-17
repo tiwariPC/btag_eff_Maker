@@ -78,9 +78,9 @@ for partonFlavor in ['b','c','light']:
           efficiencyOut.SetBinContent(denominatorOut.GetXaxis().GetNbins()+1, j, efficiencyOut.GetBinContent(denominatorOut.GetXaxis().GetNbins(), j))
 
         outputFile.cd()
-        denominatorOut.Write()
         numeratorOut.Write()
         efficiencyOut.Write()
+    denominatorOut.Write()
 outputFile.Close()
 
 print ('-------------------------------------------------------------------------------------------')
