@@ -10,7 +10,7 @@ from ROOT import TCanvas, TColor, TGaxis, TH1F, TPad, TFile, TGraphAsymmErrors,T
 import os, datetime
 import random
 import sys, optparse
-import array
+from array import array
 import math
 import getpass
 import socket
