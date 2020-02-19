@@ -49,6 +49,7 @@ import analysis_utils as anautil
 runInteractive = False
 runOn2016 = False
 runOn2017 = False
+runOn2018 = False
 
 ## ----- start if clock
 
@@ -84,6 +85,8 @@ if args.year=='2016':
     runOn2016=True
 elif args.year=='2017':
     runOn2017=True
+elif args.year=='2018':
+    runOn2018=True
 else:
     print('Please provide on which year you want to run?')
 
@@ -113,6 +116,10 @@ if runOn2017:
     deepCSVLWP = 0.1522
     deepCSVMWP = 0.4941
     deepCSVTWP = 0.8001
+if runOn2018:
+    deepCSVLWP = 0.1241
+    deepCSVMWP = 0.4184
+    deepCSVTWP = 0.7527
 
 def whichsample(filename):
     sample = -999
@@ -241,7 +248,7 @@ def runbbdm(txtfile):
                        df.nGenPar,df.genParId,df.genMomParId,df.genParSt,df.genParPx,df.genParPy,df.genParPz,df.genParE,\
                        df.THINnJet,df.THINjetPx,df.THINjetPy,df.THINjetPz,df.THINjetEnergy,\
                        df.THINjetPassIDLoose,df.THINjetDeepCSV_b,df.THINjetHadronFlavor,df.THINjetNHadEF,df.THINjetCHadEF,\
-                       df.THINjetCEmEF,df.THINjetPhoEF,df.THINjetEleEF,df.THINjetMuoEF,df.THINjetCorrUncUp,df.THINjetNPV, \
+                       df.THINjetCEmEF,df.THINjetCorrUncUp,df.THINjetNPV, \
                        df.FATnJet, df.FATjetPx, df.FATjetPy, df.FATjetPz, df.FATjetEnergy, df.FATjetPassIDLoose,\
                        df.FATjet_DoubleSV, df.FATjet_probQCDb, df.FATjet_probHbb, df.FATjet_probQCDc, df.FATjet_probHcc, df.FATjet_probHbbc,\
                        df.FATjet_prob_bbvsLight, df.FATjet_prob_ccvsLight, df.FATjet_prob_TvsQCD, df.FATjet_prob_WvsQCD, df.FATjet_prob_ZHbbvsQCD,\
@@ -259,7 +266,7 @@ def runbbdm(txtfile):
                        df.nGenPar,df.genParId,df.genMomParId,df.genParSt,df.genParPx,df.genParPy,df.genParPz,df.genParE,\
                        df.THINnJet,df.THINjetPx,df.THINjetPy,df.THINjetPz,df.THINjetEnergy,\
                        df.THINjetPassIDTight,df.THINjetDeepCSV_b,df.THINjetHadronFlavor,df.THINjetNHadEF,df.THINjetCHadEF,\
-                       df.THINjetCEmEF,df.THINjetPhoEF,df.THINjetEleEF,df.THINjetMuoEF,df.THINjetCorrUncUp,df.THINjetNPV, \
+                       df.THINjetCEmEF,df.THINjetCorrUncUp,df.THINjetNPV, \
                        df.FATnJet, df.FATjetPx, df.FATjetPy, df.FATjetPz, df.FATjetEnergy, df.FATjetPassIDTight,\
                        df.FATjet_DoubleSV, df.FATjet_probQCDb, df.FATjet_probHbb, df.FATjet_probQCDc, df.FATjet_probHcc, df.FATjet_probHbbc,\
                        df.FATjet_prob_bbvsLight, df.FATjet_prob_ccvsLight, df.FATjet_prob_TvsQCD, df.FATjet_prob_WvsQCD, df.FATjet_prob_ZHbbvsQCD,\
@@ -276,7 +283,7 @@ def runbbdm(txtfile):
                 nGenPar_,genParId_,genMomParId_,genParSt_,genpx_,genpy_,genpz_,gene_,\
                 nak4jet_,ak4px_,ak4py_,ak4pz_,ak4e_,\
                 ak4PassID_,ak4deepcsv_,ak4flavor_,ak4NHEF_,ak4CHEF_,\
-                ak4CEmEF_,ak4PhEF_,ak4EleEF_,ak4MuEF_, ak4JEC_, ak4NPV_,\
+                ak4CEmEF_,ak4JEC_, ak4NPV_,\
                 fatnJet, fatjetPx, fatjetPy, fatjetPz, fatjetEnergy,fatjetPassID,\
                 fatjet_DoubleSV, fatjet_probQCDb, fatjet_probHbb, fatjet_probQCDc, fatjet_probHcc, fatjet_probHbbc,\
                 fatjet_prob_bbvsLight, fatjet_prob_ccvsLight, fatjet_prob_TvsQCD, fatjet_prob_WvsQCD, fatjet_prob_ZHbbvsQCD,\
