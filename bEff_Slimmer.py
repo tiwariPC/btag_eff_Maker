@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from ROOT import TFile, TTree, TH1F, TH1D, TH1, TCanvas, TChain,TGraphAsymmErrors, TMath, TH2D, TLorentzVector, AddressOf, gROOT, TNamed
+from ROOT import TFile, TTree, TH1F, TH1D, TH1, TCanvas, TChain, TGraphAsymmErrors, TMath, TH2D, TLorentzVector, AddressOf, gROOT, TNamed
 import ROOT as ROOT
 import os,traceback
 import sys, optparse,argparse
@@ -18,15 +18,15 @@ from multiprocessing import Process
 import multiprocessing as mp
 
 
-isCondor = True
+isCondor = False
 
 ## user packages
 ## in local dir
-sys.path.append('configs')
+sys.path.append('skim_configs')
 import  triggers as trig
 import variables as branches
 import filters as filters
-import genPtProducer as GenPtProd
+#import genPtProducer as GenPtProd
 
 ## from commonutils
 if isCondor:sys.path.append('ExoPieUtils/commonutils/')
@@ -40,7 +40,7 @@ import BooleanUtils as boolutil
 if isCondor:sys.path.append('ExoPieUtils/analysisutils/')
 else:sys.path.append('../ExoPieUtils/analysisutils/')
 import analysis_utils as anautil
-
+import genPtProducer as GenPtProd
 ######################################################################################################
 ## All import are done before this
 ######################################################################################################
@@ -59,10 +59,13 @@ start = time.clock()
 ## ----- command line argument
 usage = "analyzer for bb+DM (debugging) "
 parser = argparse.ArgumentParser(description=usage)
-parser.add_argument("-i", "--inputfile",  dest="inputfile",default="myfiles.txt")
-parser.add_argument("-inDir", "--inputDir",  dest="inputDir",default=".")
-parser.add_argument("-runOnTXT", "--runOnTXT",action="store_true", dest="runOnTXT")
-parser.add_argument("-o", "--outputfile", dest="outputfile", default="out.root")
+parser.add_argument("-i", "--inputfile",  dest="inputfile",
+                    default="myfiles.txt")
+parser.add_argument("-inDir", "--inputDir",  dest="inputDir", default=".")
+parser.add_argument("-runOnTXT", "--runOnTXT",
+                    action="store_true", dest="runOnTXT")
+parser.add_argument("-o", "--outputfile",
+                    dest="outputfile", default="out.root")
 parser.add_argument("-D", "--outputdir", dest="outputdir")
 parser.add_argument("-F", "--farmout", action="store_true",  dest="farmout")
 parser.add_argument("-y", "--year", dest="year", default="Year")
@@ -73,31 +76,33 @@ parser.add_argument("-y", "--year", dest="year", default="Year")
 
 args = parser.parse_args()
 
-if args.farmout==None:
+if args.farmout == None:
     isfarmout = False
 else:
     isfarmout = args.farmout
 
 if args.inputDir and isfarmout:
-    dirName=args.inputDir
+    dirName = args.inputDir
 
-if args.year=='2016':
-    runOn2016=True
-elif args.year=='2017':
-    runOn2017=True
-elif args.year=='2018':
-    runOn2018=True
+if args.year == '2016':
+    runOn2016 = True
+elif args.year == '2017':
+    runOn2017 = True
+elif args.year == '2018':
+    runOn2018 = True
 else:
     print('Please provide on which year you want to run?')
+    sys.exit()
 
-runOnTxt=False
+runOnTxt = False
 if args.runOnTXT:
     runOnTxt = True
 
 if isfarmout:
-    infile  = args.inputfile
+    infile = args.inputfile
 
-else: print "No file is provided for farmout"
+else:
+    print "No file is provided for farmout"
 
 
 outputdir = '.'
@@ -107,117 +112,121 @@ if args.outputdir:
 infilename = "ExoPieElementTuples.root"
 
 debug_ = False
+
+if runOn2016 or runOn2017 or runOn2018:
+    from TheaCorrection import TheaCorrection_2016 as TheaCorrection
 #please provide the latest recommended working points from https://twiki.cern.ch/twiki/bin/viewauth/CMS/BtagRecommendation
 if runOn2016:
-    deepCSVLWP = 0.2217
-    deepCSVMWP = 0.6321
-    deepCSVTWP = 0.8953
-if runOn2017:
-    deepCSVLWP = 0.1522
-    deepCSVMWP = 0.4941
-    deepCSVTWP = 0.8001
-if runOn2018:
-    deepCSVLWP = 0.1241
-    deepCSVMWP = 0.4184
-    deepCSVTWP = 0.7527
-
+    filter_list = filters.filters2016
+    LWP = 0.2217
+    MWP = 0.6321
+    TWP = 0.8953
+elif runOn2017:
+    filter_list = filters.filters2017
+    LWP = 0.1522
+    MWP = 0.4941
+    TWP = 0.8001
+elif runOn2018:
+    filter_list = filters.filters2018
+    LWP = 0.1241
+    MWP = 0.4184
+    TWP = 0.7527
 def whichsample(filename):
+    print "SkimTree:whichsample:-- file name is ", filename
     sample = -999
     if "TTT" in filename:
         sample = 6
     elif "WJetsToLNu_HT" in filename:
         sample = 24
-    elif "ZJetsToNuNu_HT" in filename:
+    elif "ZJetsToNuNu_HT" in filename or "DYJetsToLL" in filename:
         sample = 23
     return sample
 
 def TextToList(textfile):
-    return([iline.rstrip()    for iline in open(textfile)])
+    return([iline.rstrip() for iline in open(textfile)])
 
 ## the input file list and key is caught in one variable as a python list,
 #### first element is the list of rootfiles
 #### second element is the key, user to name output.root
 
 def runbbdm(txtfile):
-    infile_=[]
-    outfilename=""
-    prefix="Skimmed_"
+    infile_ = []
+    outfilename = ""
+    prefix = "Skimmed_"
     ikey_ = ""
 
     if not runInteractive:
         print "running for ", txtfile
-        infile_  = TextToList(txtfile)
-        outfile = txtfile.split('/')[-1].replace('.txt','.root')
+        infile_ = TextToList(txtfile)
+        outfile = txtfile.split('/')[-1].replace('.txt', '.root')
         #key_=txtfile[1]
 
-        ''' old
-        prefix="Skimmed_"
-        outfilename= prefix+infile_.split("/")[-1]
-        '''
 
-        outfilename= outfile#prefix+key_+".root"
+        outfilename = outfile  # prefix+key_+".root"
         print "outfilename", outfilename
 
     if runInteractive:
-        #infile_=txtfile
-	#print "infile_", infile_
-        #ikey_ = txtfile[0].split("/")[-5] ## after the crabConfig bug fix this will become -4
-	#print "ikey_", ikey_
-        #outfilename=prefix+ikey_+".root"
-	infile_=TextToList(txtfile)
+        infile_ = TextToList(txtfile)
+        print "infile_ = ", infile_
         #print "running code for ",infile_
-        prefix_ = '' #'/eos/cms/store/group/phys_exotica/bbMET/2017_skimmedFiles/locallygenerated/'
-        if outputdir!='.': prefix_ = outputdir+'/'
+        prefix_ = ''  # '/eos/cms/store/group/phys_exotica/bbMET/2017_skimmedFiles/locallygenerated/'
+        if outputdir != '.':
+            prefix_ = outputdir+'/'
         #print "prefix_", prefix_
-        outfilename = prefix_+txtfile.split('/')[-1].replace('.txt','.root')#"SkimmedTree.root"
+        outfilename = prefix_+txtfile.split('/')[-1].replace('.txt', '.root')
         print 'outfilename',  outfilename
 
     samplename = whichsample(outfilename)
-    binning = [20.,30.,40.,50.,60.,70.,80.,90.,100.,125.,150.,200.,250.,300.,400.,500.,670.,1000.,1500.,2000.,3000]
-    nBins = len(binning) -1
-    #outputfilename = args.outputfile
-    h_total = TH1F('h_total','h_total',2,0,2)
-    h_total_mcweight = TH1F('h_total_mcweight','h_total_mcweight',2,0,2)
-
-    h_beff_den=TH2D("h_beff_den","h_beff_den",10,-2.5,2.5,nBins, array('d',binning))
-    h_ceff_den=TH2D("h_ceff_den","h_ceff_den",10,-2.5,2.5,nBins, array('d',binning))
-    h_lighteff_den=TH2D("h_lighteff_den","h_lighteff_den",10,-2.5,2.5,nBins, array('d',binning))
-
-    h_beff_lWP_num_pass=TH2D("h_beff_lWP_num_pass","h_beff_lWP_num_pass",10,-2.5,2.5,nBins, array('d',binning))
-    h_ceff_lWP_num_pass=TH2D("h_ceff_lWP_num_pass","h_ceff_lWP_num_pass",10,-2.5,2.5,nBins, array('d',binning))
-    h_lighteff_lWP_num_pass=TH2D("h_lighteff_lWP_num_pass","h_lighteff_lWP_num_pass",10,-2.5,2.5,nBins, array('d',binning))
-
-    h_beff_lWP_num_fail=TH2D("h_beff_lWP_num_fail","h_beff_lWP_num_fail",10,-2.5,2.5,nBins, array('d',binning))
-    h_ceff_lWP_num_fail=TH2D("h_ceff_lWP_num_fail","h_ceff_lWP_num_fail",10,-2.5,2.5,nBins, array('d',binning))
-    h_lighteff_lWP_num_fail=TH2D("h_lighteff_lWP_num_fail","h_lighteff_lWP_num_fail",10,-2.5,2.5,nBins, array('d',binning))
-
-    h_beff_mWP_num_pass=TH2D("h_beff_mWP_num_pass","h_beff_mWP_num_pass",10,-2.5,2.5,nBins, array('d',binning))
-    h_ceff_mWP_num_pass=TH2D("h_ceff_mWP_num_pass","h_ceff_mWP_num_pass",10,-2.5,2.5,nBins, array('d',binning))
-    h_lighteff_mWP_num_pass=TH2D("h_lighteff_mWP_num_pass","h_lighteff_mWP_num_pass",10,-2.5,2.5,nBins, array('d',binning))
-
-    h_beff_mWP_num_fail=TH2D("h_beff_mWP_num_fail","h_beff_mWP_num_fail",10,-2.5,2.5,nBins, array('d',binning))
-    h_ceff_mWP_num_fail=TH2D("h_ceff_mWP_num_fail","h_ceff_mWP_num_fail",10,-2.5,2.5,nBins, array('d',binning))
-    h_lighteff_mWP_num_fail=TH2D("h_lighteff_mWP_num_fail","h_lighteff_mWP_num_fail",10,-2.5,2.5,nBins, array('d',binning))
-
-    h_beff_tWP_num_pass=TH2D("h_beff_tWP_num_pass","h_beff_tWP_num_pass",10,-2.5,2.5,nBins, array('d',binning))
-    h_ceff_tWP_num_pass=TH2D("h_ceff_tWP_num_pass","h_ceff_tWP_num_pass",10,-2.5,2.5,nBins, array('d',binning))
-    h_lighteff_tWP_num_pass=TH2D("h_lighteff_tWP_num_pass","h_lighteff_tWP_num_pass",10,-2.5,2.5,nBins, array('d',binning))
-
-    h_beff_tWP_num_fail=TH2D("h_beff_tWP_num_fail","h_beff_tWP_num_fail",10,-2.5,2.5,nBins, array('d',binning))
-    h_ceff_tWP_num_fail=TH2D("h_ceff_tWP_num_fail","h_ceff_tWP_num_fail",10,-2.5,2.5,nBins, array('d',binning))
-    h_lighteff_tWP_num_fail=TH2D("h_lighteff_tWP_num_fail","h_lighteff_tWP_num_fail",10,-2.5,2.5,nBins, array('d',binning))
+    print ("samplename = ", samplename)
 
     if runOn2016:
         triglist = trig.trigger2016
+        eletrig = trig.Electrontrigger2016
+        muontrig = trig.Muontrigger2016
+        mettrig = trig.METtrigger2016
+        photontrig = trig.Photontrigger2016
     elif runOn2017:
         triglist = trig.trigger2017
-    passfilename = open("configs/outfilename.txt","w")
+        eletrig = trig.Electrontrigger2017
+        muontrig = trig.Muontrigger2017
+        mettrig = trig.METtrigger2017
+        photontrig = trig.Photontrigger2017
+    elif runOn2018:
+        triglist = trig.trigger2018
+        eletrig = trig.Electrontrigger2018
+        muontrig = trig.Muontrigger2018
+        mettrig = trig.METtrigger2018
+        photontrig = trig.Photontrigger2018
+
+    bins_pT     = [20.0,50.0,80.0,120.0,200.0,300.0,400.0,500.0,700.0,1000.0]
+    bins_eta    = [-2.5,-1.5,-0.5,0.0,0.5,1.5,2.5]
+
+    h_btag_num_pass_mwp    =  TH2D("h_btag_num_pass_mwp","",6,array('d',bins_eta),9,array('d',bins_pT))
+    h_btag_num_fail_mwp    =  TH2D("h_btag_num_fail_mwp","",6,array('d',bins_eta),9,array('d',bins_pT))
+    h_btag_den             =  TH2D("h_btag_den","",6,array('d',bins_eta),9,array('d',bins_pT))
+
+    h_ctag_num_pass_mwp    =  TH2D("h_ctag_num_pass_mwp","",6,array('d',bins_eta),9,array('d',bins_pT))
+    h_ctag_num_fail_mwp    =  TH2D("h_ctag_num_fail_mwp","",6,array('d',bins_eta),9,array('d',bins_pT))
+    h_ctag_den             =  TH2D("h_ctag_den","",6,array('d',bins_eta),9,array('d',bins_pT))
+
+    h_lighttag_num_pass_mwp=  TH2D("h_lighttag_num_pass_mwp","",6,array('d',bins_eta),9,array('d',bins_pT))
+    h_lighttag_num_fail_mwp=  TH2D("h_lighttag_num_fail_mwp","",6,array('d',bins_eta),9,array('d',bins_pT))
+    h_lighttag_den         =  TH2D("h_lighttag_den","",6,array('d',bins_eta),9,array('d',bins_pT))
+
+    h_btag_num_pass_lwp    = TH2D("h_btag_num_pass_lwp","",6,array('d',bins_eta),9,array('d',bins_pT))
+    h_btag_num_fail_lwp    = TH2D("h_btag_num_fail_lwp","",6,array('d',bins_eta),9,array('d',bins_pT))
+
+    h_ctag_num_pass_lwp    = TH2D("h_ctag_num_pass_lwp","",6,array('d',bins_eta),9,array('d',bins_pT))
+    h_ctag_num_fail_lwp    = TH2D("h_ctag_num_fail_lwp","",6,array('d',bins_eta),9,array('d',bins_pT))
+
+    h_lighttag_num_pass_lwp= TH2D("h_lighttag_num_pass_lwp","",6,array('d',bins_eta),9,array('d',bins_pT))
+    h_lighttag_num_fail_lwp= TH2D("h_lighttag_num_fail_lwp","",6,array('d',bins_eta),9,array('d',bins_pT))
+
+    passfilename = open("skim_configs/outfilename.txt", "w")
 
     passfilename.write(outfilename)
     passfilename.close()
 
-    ## this will give some warning, but that is safe,
-    from  outputTree  import *
 
     ## following can be moved to outputtree.py if we manage to change the name of output root file.
     outfilenameis = outfilename
@@ -229,6 +238,8 @@ def runbbdm(txtfile):
         jetvariables = branches.allvars2016
     elif runOn2017:
         jetvariables = branches.allvars2017
+    elif runOn2018:
+        jetvariables = branches.allvars2018
 
     filename = infile_
 
@@ -236,119 +247,185 @@ def runbbdm(txtfile):
     #print "running on", filename
     for df in read_root(filename, 'tree/treeMaker', columns=jetvariables, chunksize=125000):
         if runOn2016:
-            var_zip = zip(df.runId,df.lumiSection,df.eventId,df.isData,df.mcWeight,\
-                       df.pu_nTrueInt,df.pu_nPUVert,\
-                       df.hlt_trigName,df.hlt_trigResult,df.hlt_filterName,df.hlt_filterResult,\
-                       df.pfMetCorrPt,df.pfMetCorrPhi,df.pfMetCorrUnc,\
-                       df.nEle,df.elePx,df.elePy,df.elePz,df.eleEnergy,df.eleIsPassVeto, df.eleIsPassLoose,df.eleIsPassTight,\
-                       df.eleCharge,df.nPho,df.phoPx,df.phoPy,df.phoPz,df.phoEnergy,df.phoIsPassLoose,df.phoIsPassTight,\
-                       df.nMu,df.muPx,df.muPy,df.muPz,df.muEnergy,df.isLooseMuon,df.isTightMuon,df.PFIsoLoose, df.PFIsoMedium, df.PFIsoTight, df.PFIsoVeryTight, df.muCharge,\
-                       df.HPSTau_n,df.HPSTau_Px,df.HPSTau_Py,df.HPSTau_Pz,df.HPSTau_Energy,df.disc_decayModeFinding,df.disc_byLooseIsolationMVArun2017v2DBoldDMwLT2017,df.disc_byMediumIsolationMVArun2017v2DBoldDMwLT2017,df.disc_byTightIsolationMVArun2017v2DBoldDMwLT2017,\
-                       df.disc_againstMuonLoose3,df.disc_againstMuonTight3,df.disc_againstElectronLooseMVA6,df.disc_againstElectronMediumMVA6,df.disc_againstElectronTightMVA6,\
-                       df.nGenPar,df.genParId,df.genMomParId,df.genParSt,df.genParPx,df.genParPy,df.genParPz,df.genParE,\
-                       df.THINnJet,df.THINjetPx,df.THINjetPy,df.THINjetPz,df.THINjetEnergy,\
-                       df.THINjetPassIDLoose,df.THINjetDeepCSV_b,df.THINjetHadronFlavor,df.THINjetNHadEF,df.THINjetCHadEF,\
-                       df.THINjetCEmEF,df.THINjetCorrUncUp,df.THINjetNPV, \
-                       df.FATnJet, df.FATjetPx, df.FATjetPy, df.FATjetPz, df.FATjetEnergy, df.FATjetPassIDLoose,\
-                       df.FATjet_DoubleSV, df.FATjet_probQCDb, df.FATjet_probHbb, df.FATjet_probQCDc, df.FATjet_probHcc, df.FATjet_probHbbc,\
-                       df.FATjet_prob_bbvsLight, df.FATjet_prob_ccvsLight, df.FATjet_prob_TvsQCD, df.FATjet_prob_WvsQCD, df.FATjet_prob_ZHbbvsQCD,\
-                       df.FATjetSDmass, df.FATN2_Beta1_, df.FATN2_Beta2_, df.FATjetCHSPRmassL2L3Corr, df.FATjetCHSSDmassL2L3Corr)
+            var_zip = zip(df.runId, df.lumiSection, df.eventId, df.isData, df.mcWeight,
+                          df.prefiringweight, df.prefiringweightup, df.prefiringweightdown,
+                          df.pu_nTrueInt, df.pu_nPUVert,
+                          df.hlt_trigName, df.hlt_trigResult, df.hlt_filterName, df.hlt_filterResult,
+                          df.pfpatMet_smear, df.pfMetCorrPt, df.pfMetCorrPhi, df.pfMetCorrUnc,
+                          df.pfMetCorrSig, df.pfpatCaloMETPt, df.pfpatCaloMETPhi, df.pfTRKMETPt_, df.pfTRKMETPhi_,
+                          df.nEle, df.elePx, df.elePy, df.elePz, df.eleEnergy, df.eleIsPassVeto, df.eleIsPassLoose, df.eleIsPassTight, df.eleD0, df.eleDz,
+                          df.eleCharge, df.nPho, df.phoPx, df.phoPy, df.phoPz, df.phoEnergy, df.phoIsPassLoose, df.phoIsPassTight,
+                          df.nMu, df.muPx, df.muPy, df.muPz, df.muEnergy, df.isLooseMuon, df.isTightMuon, df.PFIsoLoose, df.PFIsoMedium, df.PFIsoTight, df.PFIsoVeryTight, df.muCharge,
+                          df.HPSTau_n, df.HPSTau_Px, df.HPSTau_Py, df.HPSTau_Pz, df.HPSTau_Energy, df.disc_decayModeFinding, df.disc_byLooseIsolationMVArun2017v2DBoldDMwLT2017, df.disc_byMediumIsolationMVArun2017v2DBoldDMwLT2017, df.disc_byTightIsolationMVArun2017v2DBoldDMwLT2017,
+                          df.disc_againstMuonLoose3, df.disc_againstMuonTight3, df.disc_againstElectronLooseMVA6, df.disc_againstElectronMediumMVA6, df.disc_againstElectronTightMVA6,
+                          df.nGenPar, df.genParId, df.genMomParId, df.genParSt, df.genParPx, df.genParPy, df.genParPz, df.genParE,
+                          df.THINnJet, df.THINjetPx, df.THINjetPy, df.THINjetPz, df.THINjetEnergy, df.THINbRegNNResolution, df.THINbRegNNCorr,df.THINisPUJetIDLoose,df.THINisPUJetIDMedium,df.THINisPUJetIDTight,
+                          df.THINjetPassIDLoose, df.THINjetDeepCSV_b, df.THINjetHadronFlavor, df.THINjetCEmEF, df.THINjetCHadEF, df.THINjetNEmEF, df.THINjetNHadEF, df.THINjetCMulti, df.THINjetNMultiplicity, df.THINjetCorrUncUp, df.THINjetNPV,
+                          df.FATnJet, df.FATjetPx, df.FATjetPy, df.FATjetPz, df.FATjetEnergy, df.FATgenjetpx, df.FATgenjetpy, df.FATgenjetpz, df.FATgenjetE, df.FATjetPassIDLoose,
+                          df.FATjet_DoubleSV, df.FATjet_probQCDb, df.FATjet_probHbb, df.FATjet_probQCDc, df.FATjet_probHcc, df.FATjet_probHbbc,
+                          df.FATjet_prob_bbvsLight, df.FATjet_prob_ccvsLight, df.FATjet_prob_TvsQCD, df.FATjet_prob_WvsQCD, df.FATjet_prob_ZHbbvsQCD,
+                          df.FATjetSDmass, df.FATN2_Beta1_, df.FATN2_Beta2_, df.FATjetCHSPRmassL2L3Corr, df.FATjetCHSSDmassL2L3Corr, df.FATjetTau1, df.FATjetTau2)
         elif runOn2017:
-            var_zip = zip(df.runId,df.lumiSection,df.eventId,df.isData,df.mcWeight,\
-                       df.pu_nTrueInt,df.pu_nPUVert,\
-                       df.hlt_trigName,df.hlt_trigResult,df.hlt_filterName,df.hlt_filterResult,\
-                       df.pfMetCorrPt,df.pfMetCorrPhi,df.pfMetCorrUnc,\
-                       df.nEle,df.elePx,df.elePy,df.elePz,df.eleEnergy,df.eleIsPassVeto, df.eleIsPassLoose,df.eleIsPassTight,\
-                       df.eleCharge,df.nPho,df.phoPx,df.phoPy,df.phoPz,df.phoEnergy,df.phoIsPassLoose,df.phoIsPassTight,\
-                       df.nMu,df.muPx,df.muPy,df.muPz,df.muEnergy,df.isLooseMuon,df.isTightMuon,df.PFIsoLoose, df.PFIsoMedium, df.PFIsoTight, df.PFIsoVeryTight, df.muCharge,\
-                       df.HPSTau_n,df.HPSTau_Px,df.HPSTau_Py,df.HPSTau_Pz,df.HPSTau_Energy,df.disc_decayModeFinding,df.disc_byLooseIsolationMVArun2017v2DBoldDMwLT2017,df.disc_byMediumIsolationMVArun2017v2DBoldDMwLT2017,df.disc_byTightIsolationMVArun2017v2DBoldDMwLT2017,\
-                       df.disc_againstMuonLoose3,df.disc_againstMuonTight3,df.disc_againstElectronLooseMVA6,df.disc_againstElectronMediumMVA6,df.disc_againstElectronTightMVA6,\
-                       df.nGenPar,df.genParId,df.genMomParId,df.genParSt,df.genParPx,df.genParPy,df.genParPz,df.genParE,\
-                       df.THINnJet,df.THINjetPx,df.THINjetPy,df.THINjetPz,df.THINjetEnergy,\
-                       df.THINjetPassIDTight,df.THINjetDeepCSV_b,df.THINjetHadronFlavor,df.THINjetNHadEF,df.THINjetCHadEF,\
-                       df.THINjetCEmEF,df.THINjetCorrUncUp,df.THINjetNPV, \
-                       df.FATnJet, df.FATjetPx, df.FATjetPy, df.FATjetPz, df.FATjetEnergy, df.FATjetPassIDTight,\
-                       df.FATjet_DoubleSV, df.FATjet_probQCDb, df.FATjet_probHbb, df.FATjet_probQCDc, df.FATjet_probHcc, df.FATjet_probHbbc,\
-                       df.FATjet_prob_bbvsLight, df.FATjet_prob_ccvsLight, df.FATjet_prob_TvsQCD, df.FATjet_prob_WvsQCD, df.FATjet_prob_ZHbbvsQCD,\
-                       df.FATjetSDmass, df.FATN2_Beta1_, df.FATN2_Beta2_, df.FATjetCHSPRmassL2L3Corr, df.FATjetCHSSDmassL2L3Corr)
-        for run,lumi,event,isData,mcWeight_,\
-                pu_nTrueInt_,pu_nPUVert_,\
-                trigName_,trigResult_,filterName,filterResult,\
-                met_,metphi_,metUnc_,\
-                nele_,elepx_,elepy_,elepz_,elee_,elevetoid_, elelooseid_,eletightid_,\
-                eleCharge_, npho_,phopx_,phopy_,phopz_,phoe_,pholooseid_,photightID_,\
-                nmu_,mupx_,mupy_,mupz_,mue_,mulooseid_,mutightid_,muisoloose, muisomedium, muisotight, muisovtight, muCharge_,\
-                nTau_,tau_px_,tau_py_,tau_pz_,tau_e_,tau_dm_,tau_isLoose_,tau_isoMedium_,tau_isoTight_,\
-                Taudisc_againstLooseMuon,Taudisc_againstTightMuon,Taudisc_againstLooseElectron,Taudisc_againstMediumElectron,Taudisc_againstTightElectron,\
-                nGenPar_,genParId_,genMomParId_,genParSt_,genpx_,genpy_,genpz_,gene_,\
-                nak4jet_,ak4px_,ak4py_,ak4pz_,ak4e_,\
-                ak4PassID_,ak4deepcsv_,ak4flavor_,ak4NHEF_,ak4CHEF_,\
-                ak4CEmEF_,ak4JEC_, ak4NPV_,\
-                fatnJet, fatjetPx, fatjetPy, fatjetPz, fatjetEnergy,fatjetPassID,\
+            var_zip = zip(df.runId, df.lumiSection, df.eventId, df.isData, df.mcWeight,
+                          df.prefiringweight, df.prefiringweightup, df.prefiringweightdown,
+                          df.pu_nTrueInt, df.pu_nPUVert,
+                          df.hlt_trigName, df.hlt_trigResult, df.hlt_filterName, df.hlt_filterResult,
+                          df.pfpatmodifiedMet_smear, df.pfmodifiedMetCorrPt, df.pfmodifiedMetCorrPhi, df.pfmodifiedMetCorrUnc,
+                          df.pfmodifiedMetCorrSig, df.pfpatCaloMETPt, df.pfpatCaloMETPhi, df.pfTRKMETPt_, df.pfTRKMETPhi_,
+                          df.nEle, df.elePx, df.elePy, df.elePz, df.eleEnergy, df.eleIsPassVeto, df.eleIsPassLoose, df.eleIsPassTight, df.eleD0, df.eleDz,
+                          df.eleCharge, df.nPho, df.phoPx, df.phoPy, df.phoPz, df.phoEnergy, df.phoIsPassLoose, df.phoIsPassTight,
+                          df.nMu, df.muPx, df.muPy, df.muPz, df.muEnergy, df.isLooseMuon, df.isTightMuon, df.PFIsoLoose, df.PFIsoMedium, df.PFIsoTight, df.PFIsoVeryTight, df.muCharge,
+                          df.HPSTau_n, df.HPSTau_Px, df.HPSTau_Py, df.HPSTau_Pz, df.HPSTau_Energy, df.disc_decayModeFinding, df.disc_byLooseIsolationMVArun2017v2DBoldDMwLT2017, df.disc_byMediumIsolationMVArun2017v2DBoldDMwLT2017, df.disc_byTightIsolationMVArun2017v2DBoldDMwLT2017,
+                          df.disc_againstMuonLoose3, df.disc_againstMuonTight3, df.disc_againstElectronLooseMVA6, df.disc_againstElectronMediumMVA6, df.disc_againstElectronTightMVA6,
+                          df.nGenPar, df.genParId, df.genMomParId, df.genParSt, df.genParPx, df.genParPy, df.genParPz, df.genParE,
+                          df.THINnJet, df.THINjetPx, df.THINjetPy, df.THINjetPz, df.THINjetEnergy, df.THINbRegNNResolution, df.THINbRegNNCorr,df.THINisPUJetIDLoose,df.THINisPUJetIDMedium,df.THINisPUJetIDTight,
+                          df.THINjetPassIDTight, df.THINjetDeepCSV_b, df.THINjetHadronFlavor, df.THINjetCEmEF, df.THINjetCHadEF, df.THINjetNEmEF, df.THINjetNHadEF, df.THINjetCMulti, df.THINjetNMultiplicity, df.THINjetCorrUncUp, df.THINjetNPV,
+                          df.FATnJet, df.FATjetPx, df.FATjetPy, df.FATjetPz, df.FATjetEnergy, df.FATgenjetpx, df.FATgenjetpy, df.FATgenjetpz, df.FATgenjetE, df.FATjetPassIDTight,
+                          df.FATjet_DoubleSV, df.FATjet_probQCDb, df.FATjet_probHbb, df.FATjet_probQCDc, df.FATjet_probHcc, df.FATjet_probHbbc,
+                          df.FATjet_prob_bbvsLight, df.FATjet_prob_ccvsLight, df.FATjet_prob_TvsQCD, df.FATjet_prob_WvsQCD, df.FATjet_prob_ZHbbvsQCD,
+                          df.FATjetSDmass, df.FATN2_Beta1_, df.FATN2_Beta2_, df.FATjetCHSPRmassL2L3Corr, df.FATjetCHSSDmassL2L3Corr, df.FATjetTau1, df.FATjetTau2)
+        elif runOn2018:
+            df['prefiringweight'] = 1.0
+            df['prefiringweightup'] = 1.0
+            df['prefiringweightdown'] = 1.0
+            var_zip = zip(df.runId, df.lumiSection, df.eventId, df.isData, df.mcWeight,
+                          df.prefiringweight, df.prefiringweightup, df.prefiringweightdown,
+                          df.pu_nTrueInt, df.pu_nPUVert,
+                          df.hlt_trigName, df.hlt_trigResult, df.hlt_filterName, df.hlt_filterResult,
+                          df.pfpatMet_smear, df.pfMetCorrPt, df.pfMetCorrPhi, df.pfMetCorrUnc,
+                          df.pfMetCorrSig, df.pfpatCaloMETPt, df.pfpatCaloMETPhi, df.pfTRKMETPt_, df.pfTRKMETPhi_,
+                          df.nEle, df.elePx, df.elePy, df.elePz, df.eleEnergy, df.eleIsPassVeto, df.eleIsPassLoose, df.eleIsPassTight, df.eleD0, df.eleDz,
+                          df.eleCharge, df.nPho, df.phoPx, df.phoPy, df.phoPz, df.phoEnergy, df.phoIsPassLoose, df.phoIsPassTight,
+                          df.nMu, df.muPx, df.muPy, df.muPz, df.muEnergy, df.isLooseMuon, df.isTightMuon, df.PFIsoLoose, df.PFIsoMedium, df.PFIsoTight, df.PFIsoVeryTight, df.muCharge,
+                          df.HPSTau_n, df.HPSTau_Px, df.HPSTau_Py, df.HPSTau_Pz, df.HPSTau_Energy, df.disc_decayModeFinding, df.disc_byLooseIsolationMVArun2017v2DBoldDMwLT2017, df.disc_byMediumIsolationMVArun2017v2DBoldDMwLT2017, df.disc_byTightIsolationMVArun2017v2DBoldDMwLT2017,
+                          df.disc_againstMuonLoose3, df.disc_againstMuonTight3, df.disc_againstElectronLooseMVA6, df.disc_againstElectronMediumMVA6, df.disc_againstElectronTightMVA6,
+                          df.nGenPar, df.genParId, df.genMomParId, df.genParSt, df.genParPx, df.genParPy, df.genParPz, df.genParE,
+                          df.THINnJet, df.THINjetPx, df.THINjetPy, df.THINjetPz, df.THINjetEnergy, df.THINbRegNNResolution, df.THINbRegNNCorr,df.THINisPUJetIDLoose,df.THINisPUJetIDMedium,df.THINisPUJetIDTight,
+                          df.THINjetPassIDTight, df.THINjetDeepCSV_b, df.THINjetHadronFlavor, df.THINjetCEmEF, df.THINjetCHadEF, df.THINjetNEmEF, df.THINjetNHadEF, df.THINjetCMulti, df.THINjetNMultiplicity, df.THINjetCorrUncUp, df.THINjetNPV,
+                          df.FATnJet, df.FATjetPx, df.FATjetPy, df.FATjetPz, df.FATjetEnergy, df.FATgenjetpx, df.FATgenjetpy, df.FATgenjetpz, df.FATgenjetE, df.FATjetPassIDTight,
+                          df.FATjet_DoubleSV, df.FATjet_probQCDb, df.FATjet_probHbb, df.FATjet_probQCDc, df.FATjet_probHcc, df.FATjet_probHbbc,
+                          df.FATjet_prob_bbvsLight, df.FATjet_prob_ccvsLight, df.FATjet_prob_TvsQCD, df.FATjet_prob_WvsQCD, df.FATjet_prob_ZHbbvsQCD,
+                          df.FATjetSDmass, df.FATN2_Beta1_, df.FATN2_Beta2_, df.FATjetCHSPRmassL2L3Corr, df.FATjetCHSSDmassL2L3Corr, df.FATjetTau1, df.FATjetTau2)
+        for run, lumi, event, isData, mcWeight_,\
+                prefiringweight_, prefiringweightup_, prefiringweightdown_,\
+                pu_nTrueInt_, pu_nPUVert_,\
+                trigName_, trigResult_, filterName, filterResult,\
+                met_smear, met_, metphi_, metUnc_,\
+                metCorrSig, patCaloMETPt, patCaloMETPhi, TRKMETPt_, TRKMETPhi_,\
+                nele_, elepx_, elepy_, elepz_, elee_, elevetoid_, elelooseid_, eletightid_, eleD0_, eleDz_,\
+                eleCharge_, npho_, phopx_, phopy_, phopz_, phoe_, pholooseid_, photightID_,\
+                nmu_, mupx_, mupy_, mupz_, mue_, mulooseid_, mutightid_, muisoloose, muisomedium, muisotight, muisovtight, muCharge_,\
+                nTau_, tau_px_, tau_py_, tau_pz_, tau_e_, tau_dm_, tau_isLoose_, tau_isoMedium_, tau_isoTight_,\
+                Taudisc_againstLooseMuon, Taudisc_againstTightMuon, Taudisc_againstLooseElectron, Taudisc_againstMediumElectron, Taudisc_againstTightElectron,\
+                nGenPar_, genParId_, genMomParId_, genParSt_, genpx_, genpy_, genpz_, gene_,\
+                nak4jet_, ak4px_, ak4py_, ak4pz_, ak4e_, ak4bRegNNResolution, ak4bRegNNCorr,ak4PUJetIDLoose,ak4PUJetIDMedium,ak4PUJetIDTight,\
+                ak4PassID_, ak4deepcsv_, ak4flavor_, ak4CEmEF_, ak4CHadEF_, ak4NEmEF_, ak4NHadEF_, ak4CMulti_, ak4NMultiplicity_, ak4JEC_, ak4NPV_,\
+                fatnJet, fatjetPx, fatjetPy, fatjetPz, fatjetEnergy, fatgenjetPx, fatgenjetPy, fatgenjetPz, fatgenjetEnergy, fatjetPassID,\
                 fatjet_DoubleSV, fatjet_probQCDb, fatjet_probHbb, fatjet_probQCDc, fatjet_probHcc, fatjet_probHbbc,\
                 fatjet_prob_bbvsLight, fatjet_prob_ccvsLight, fatjet_prob_TvsQCD, fatjet_prob_WvsQCD, fatjet_prob_ZHbbvsQCD,\
-                fatjetSDmass, fatN2_Beta1_, fatN2_Beta2_, fatjetCHSPRmassL2L3Corr, fatjetCHSSDmassL2L3Corr\
+                fatjetSDmass, fatN2_Beta1_, fatN2_Beta2_, fatjetCHSPRmassL2L3Corr, fatjetCHSSDmassL2L3Corr, fatjetTau1, fatjetTau2\
                 in var_zip:
-            if debug_: print len(trigName_),len(trigResult_),len(filterName),len(filterResult),len(metUnc_), len(elepx_), len(elepy_), len(elepz_), len(elee_), len(elevetoid_), len(elelooseid_), len(eletightid_), len(eleCharge_), npho_,len(phopx_), len(phopy_), len(phopz_), len(phoe_), len(pholooseid_), len(photightID_), nmu_, len(mupx_), len(mupy_), len(mupz_), len(mue_), len(mulooseid_), len(mutightid_), len(muisoloose), len(muisomedium), len(muisotight), len(muisovtight), len(muCharge_), nTau_, len(tau_px_), len(tau_py_), len(tau_pz_), len(tau_e_), len(tau_dm_), len(tau_isLoose_), len(genParId_), len(genMomParId_), len(genParSt_), len(genpx_), len(genpy_), len(genpz_), len(gene_), len(ak4px_), len(ak4py_), len(ak4pz_), len(ak4e_), len(ak4PassID_), len(ak4deepcsv_), len(ak4flavor_), len(ak4NHEF_), len(ak4CHEF_), len(ak4CEmEF_), len(ak4PhEF_), len(ak4EleEF_), len(ak4MuEF_), len(ak4JEC_), len(fatjetPx), len(fatjetPy), len(fatjetPz), len(fatjetEnergy), len(fatjetPassID), len(fatjet_DoubleSV), len(fatjet_probQCDb), len(fatjet_probHbb), len(fatjet_probQCDc), len(fatjet_probHcc), len(fatjet_probHbbc), len(fatjet_prob_bbvsLight), len(fatjet_prob_ccvsLight), len(fatjet_prob_TvsQCD), len(fatjet_prob_WvsQCD), len(fatjet_prob_ZHbbvsQCD), len(fatjetSDmass), len(fatN2_Beta1_), len(fatN2_Beta2_), len(fatjetCHSPRmassL2L3Corr), len(fatjetCHSSDmassL2L3Corr)
 
-            if ieve%1000==0: print "Processed",ieve,"Events"
+
+            if ieve % 1000 == 0:
+                print ("Processed", ieve, "Events")
             ieve = ieve + 1
             # -------------------------------------------------
             # MC Weights
             # -------------------------------------------------
-            mcweight[0] = 0.0
-            if isData==1:   mcweight[0] =  1.0
-            if not isData :
-                if mcWeight_<0:  mcweight[0] = -1.0
-                if mcWeight_>0:  mcweight[0] =  1.0
-            h_total.Fill(1.);
-            h_total_mcweight.Fill(1.,mcweight[0]);
+            # mcweight[0] = 0.0
+            # if isData == 1:
+            #     mcweight[0] = 1.0
+            # if not isData:
+            #     if mcWeight_ < 0:
+            #         mcweight[0] = -1.0
+            #     if mcWeight_ > 0:
+            #         mcweight[0] = 1.0
+            # h_total.Fill(1.)
+            # h_total_mcweight.Fill(1., mcweight[0])
 
             # -------------------------------------------------
             ## Trigger selection
             # -------------------------------------------------
 
-            eletrigdecision=False
-            mudecision=False
-            metdecision=False
-            phodecision=False
+            eletrigdecision = False
+            mudecision = False
+            metdecision = False
+            phodecision = False
 
-            eletrigstatus = [( anautil.CheckFilter(trigName_, trigResult_, trig.Electrontrigger2017[itrig] ) ) for itrig in range(len(trig.Electrontrigger2017))]
-            mutrigstatus  = [( anautil.CheckFilter(trigName_, trigResult_, trig.Muontrigger2017[itrig]     ) ) for itrig in range(len(trig.Muontrigger2017))    ]
-            mettrigstatus = [( anautil.CheckFilter(trigName_, trigResult_, trig.METtrigger2017[itrig]       ) ) for itrig in range(len(trig.METtrigger2017))     ]
-            photrigstatus = [( anautil.CheckFilter(trigName_, trigResult_, trig.Photontrigger2017[itrig]   ) ) for itrig in range(len(trig.Photontrigger2017))  ]
+            eletrigstatus = [(anautil.CheckFilter(
+                trigName_, trigResult_, eletrig[itrig])) for itrig in range(len(eletrig))]
+            mutrigstatus = [(anautil.CheckFilter(
+                trigName_, trigResult_, muontrig[itrig])) for itrig in range(len(muontrig))]
+            mettrigstatus = [(anautil.CheckFilter(
+                trigName_, trigResult_, mettrig[itrig])) for itrig in range(len(mettrig))]
+            photrigstatus = [(anautil.CheckFilter(
+                trigName_, trigResult_, photontrig[itrig])) for itrig in range(len(photontrig))]
 
             eletrigdecision = boolutil.logical_OR(eletrigstatus)
-            mutrigdecision  = boolutil.logical_OR(mutrigstatus)
+            mutrigdecision = boolutil.logical_OR(mutrigstatus)
             mettrigdecision = boolutil.logical_OR(mettrigstatus)
             photrigdecision = boolutil.logical_OR(photrigstatus)
-
-            if not isData:
-                eletrigdecision = True
-                mutrigdecision = True
-                mettrigdecision = True
-                photrigdecision = True
-
 
             # ------------------------------------------------------
             ## Filter selection
             # ------------------------------------------------------
-            filterdecision=False
-            filterstatus = [False for ifilter in range(len(filters.filters2017)) ]
-            filterstatus = [anautil.CheckFilter(filterName, filterResult, filters.filters2017[ifilter]) for ifilter in range(len(filters.filters2017)) ]
+            filterdecision = False
+            filterstatus = [False for ifilter in range(len(filter_list))]
+            filterstatus = [anautil.CheckFilter(
+                filterName, filterResult, filter_list[ifilter]) for ifilter in range(len(filter_list))]
 
-
-            if not isData:     filterdecision = True
-            if isData:         filterdecision  = boolutil.logical_AND(filterstatus)
-
-            if filterdecision == False: continue
-
-
+            filterdecision = boolutil.logical_AND(filterstatus)
+            if filterdecision == False and isData:
+                continue
 
             # ------------------------------------------------------
             ## PFMET Selection
             # --------------------------------------------------------
-            pfmetstatus = ( met_ > 200. )
+            pfmetstatus = (met_ > 200.0)
+
+
+            '''
+            ****   *      ****
+            *      *      *
+            ***    *      ***
+            *      *      *
+            ****   ****   ****
+            '''
+            elept = getPt(elepx_, elepy_)
+            eleeta = getEta(elepx_, elepy_, elepz_)
+            elephi = getPhi(elepx_, elepy_)
+
+            ele_pt10_eta2p5_vetoID = boolutil.logical_and3((elept > 10.0), (elevetoid_),  numpy.logical_and(
+                numpy.logical_or(numpy.abs(eleeta) > 1.566, numpy.abs(eleeta) < 1.4442), (numpy.abs(eleeta) < 2.5)))
+
+            ele_pt10_eta2p5_looseID = boolutil.logical_and3((elept > 10.0), (elelooseid_),  numpy.logical_and(
+                numpy.logical_or(numpy.abs(eleeta) > 1.566, numpy.abs(eleeta) < 1.4442), (numpy.abs(eleeta) < 2.5)))
+
+            ele_pt30_eta2p5_tightID = boolutil.logical_and3((elept > 30.0), (eletightid_),  numpy.logical_and(numpy.logical_or(boolutil.logical_and3(numpy.abs(eleeta) > 1.566, numpy.abs(
+                eleD0_) < 0.10, numpy.abs(eleDz_) < 0.20), boolutil.logical_and3(numpy.abs(eleeta) < 1.4442, numpy.abs(eleD0_) < 0.05, numpy.abs(eleDz_) < 0.10)), (numpy.abs(eleeta) < 2.5)))
+
+            pass_ele_veto_index = boolutil.WhereIsTrue(ele_pt10_eta2p5_vetoID)
+            pass_ele_loose_index = boolutil.WhereIsTrue(
+                ele_pt10_eta2p5_looseID)
+
+            '''
+            **     *  *     *
+            * *  * *  *     *
+            *  *   *  *     *
+            *      *  *     *
+            *      *   *****
+            '''
+            mupt = getPt(mupx_, mupy_)
+            mueta = getEta(mupx_, mupy_, mupz_)
+            muphi = getPhi(mupx_, mupy_)
+            mu_pt10_eta2p4_looseID_looseISO = boolutil.logical_and4(
+                mupt > 10.0, numpy.abs(mueta) < 2.4,  mulooseid_, muisoloose)
+            mu_pt30_eta2p4_tightID_tightISO = boolutil.logical_and4(
+                (mupt > 30.0), (numpy.abs(mueta) < 2.4), (mutightid_), (muisotight))
+
+            pass_mu_index = boolutil.WhereIsTrue(
+                mu_pt10_eta2p4_looseID_looseISO)
 
             '''
             *******   *      *   ******
@@ -358,44 +435,197 @@ def runbbdm(txtfile):
             *         *      *   ******
             '''
 
-            phopt = [getPt(phopx_[ip], phopy_[ip]) for ip in range(npho_)]
-            phoeta = [getEta(phopx_[ip], phopy_[ip], phopz_[ip]) for ip in range(npho_)]
+            phopt = getPt(phopx_, phopy_)
+            phoeta = getEta(phopx_, phopy_, phopz_)
+            phophi = getPhi(phopx_, phopy_)
 
-            pho_pt15_eta2p5_looseID = [ (phopt[ip] > 15.0) and (abs(phoeta[ip]) < 2.5) and (pholooseid_[ip])               for ip in range(npho_)]
+            pho_pt15_eta2p5_looseID = boolutil.logical_and3(
+                (phopt > 15.0),   (numpy.abs(phoeta) < 2.5),  (pholooseid_))
             pass_pho_index = boolutil.WhereIsTrue(pho_pt15_eta2p5_looseID)
 
-            '''
-            ****   *      ****
-            *      *      *
-            ***    *      ***
-            *      *      *
-            ****   ****   ****
-            '''
-            elept = [getPt(elepx_[ie], elepy_[ie]) for ie in range(nele_)]
-            eleeta = [getEta(elepx_[ie], elepy_[ie], elepz_[ie]) for ie in range(nele_)]
-            elephi = [getPhi(elepx_[ie], elepy_[ie]) for ie in range(nele_)]
+            cleanedPho_ag_ele = []; cleanedPho_ag_mu = [];pass_pho_index_cleaned=[]
+            if npho_ > 0: #and ep_nEle > 0:
+                cleanedPho_ag_ele = anautil.jetcleaning(pho_pt15_eta2p5_looseID, ele_pt10_eta2p5_looseID, phoeta, eleeta, phophi, elephi, 0.4)
+                cleanedPho_ag_mu  = anautil.jetcleaning(pho_pt15_eta2p5_looseID, mu_pt10_eta2p4_looseID_looseISO, phoeta, mueta, phophi, muphi, 0.4)
+                cleanedPhoton     = boolutil.logical_AND_List2(cleanedPho_ag_ele,cleanedPho_ag_mu)
+                pass_pho_index_cleaned = boolutil.WhereIsTrue(cleanedPhoton)
 
-            ele_pt10_eta2p5_vetoID   = [(elept[ie] > 10.0) and (elevetoid_[ie])  and (((abs(eleeta[ie]) > 1.566 or abs(eleeta[ie]) < 1.4442) and (abs(eleeta[ie]) < 2.5))) for ie in range(nele_)]
-            ele_pt10_eta2p5_looseID  = [(elept[ie] > 10.0) and (elelooseid_[ie]) and (((abs(eleeta[ie]) > 1.566 or abs(eleeta[ie]) < 1.4442) and (abs(eleeta[ie]) < 2.5))) for ie in range(nele_)]
-            ele_pt30_eta2p5_tightID  = [(elept[ie] > 30.0) and (eletightid_[ie]) and (((abs(eleeta[ie]) > 1.566 or abs(eleeta[ie]) < 1.4442) and (abs(eleeta[ie]) < 2.5))) for ie in range(nele_)]
+            ## Fill variables for the CRs which require lepton.
+            WenuRecoil = -1
+            WenuRecoilSmearPt = -1
+            Wenumass = -1
+            WenuPhi = -10
 
-            pass_ele_veto_index      = boolutil.WhereIsTrue(ele_pt10_eta2p5_vetoID)
+            WmunuRecoil = -1
+            WmunuRecoilSmearPt = -1
+            Wmunumass = -1
+            WmunuPhi = -10
 
-            '''
-            **     *  *     *
-            * *  * *  *     *
-            *  *   *  *     *
-            *      *  *     *
-            *      *   *****
-            '''
-            mupt = [getPt(mupx_[imu], mupy_[imu]) for imu in range(nmu_)]
-            mueta = [getEta(mupx_[imu], mupy_[imu], mupz_[imu]) for imu in range(nmu_)]
-            muphi = [getPhi(mupx_[imu], mupy_[imu]) for imu in range(nmu_)]
+            ZeeRecoil = -1
+            ZeeRecoilSmear = -1
+            Zeemass = -1
+            ZeePhi = -10
 
-            mu_pt10_eta2p4_looseID_looseISO  = [ ( (mupt[imu] > 10.0) and (abs(mueta[imu]) < 2.4 ) and (mulooseid_[imu])  and (muisoloose[imu]) )  for imu in range(nmu_) ]
-            mu_pt30_eta2p4_tightID_tightISO  = [ ( (mupt[imu] > 30.0) and (abs(mueta[imu]) < 2.4 ) and (mutightid_[imu])  and (muisotight[imu]) )  for imu in range(nmu_) ]
+            ZmumuRecoil = -1
+            ZmumuRecoilSmear = -1
+            Zmumumass = -1
+            ZmumuPhi = -10
 
-            pass_mu_index = boolutil.WhereIsTrue(mu_pt10_eta2p4_looseID_looseISO)
+            GammaRecoil = -1
+            GammaRecoilSmearPt = -1
+            GammaPhi = -10
+            if debug_:
+                print ('Reached Fill variables')
+
+            # ------------------
+            # Z CR
+            # ------------------
+            ## for dielectron
+            if len(pass_ele_loose_index) == 2:
+                iele1 = pass_ele_loose_index[0]
+                iele2 = pass_ele_loose_index[1]
+                if eleCharge_[iele1]*eleCharge_[iele2] < 0:
+                    ee_mass = InvMass(elepx_[iele1], elepy_[iele1], elepz_[iele1], elee_[
+                                      iele1], elepx_[iele2], elepy_[iele2], elepz_[iele2], elee_[iele2])
+                    zeeRecoilPx = -(met_*math.cos(metphi_) +
+                                    elepx_[iele1] + elepx_[iele2])
+                    zeeRecoilPy = -(met_*math.sin(metphi_) +
+                                    elepy_[iele1] + elepy_[iele2])
+                    ZeeRecoilPt = math.sqrt(zeeRecoilPx**2 + zeeRecoilPy**2)
+                    if ee_mass > 60.0 and ee_mass < 120.0 and ZeeRecoilPt > 200.0:
+                        ZeeRecoil = ZeeRecoilPt
+                        Zeemass = ee_mass
+                        ZeePhi = mathutil.ep_arctan(
+                            zeeRecoilPx, zeeRecoilPy)
+                    zeeRecoilSmearPx = - \
+                        (met_*math.cos(metphi_) +
+                         elepx_[iele1] + elepx_[iele2])
+                    zeeRecoilSmearPy = - \
+                        (met_*math.sin(metphi_) +
+                         elepy_[iele1] + elepy_[iele2])
+                    ZeeRecoilSmearPt = math.sqrt(
+                        zeeRecoilSmearPx**2 + zeeRecoilSmearPy**2)
+                    if ee_mass > 60.0 and ee_mass < 120.0 and ZeeRecoilSmearPt > 200.0:
+                        ZeeRecoilSmear = ZeeRecoilSmearPt
+            ## for dimu
+            if len(pass_mu_index) == 2:
+                imu1 = pass_mu_index[0]
+                imu2 = pass_mu_index[1]
+                if muCharge_[imu1]*muCharge_[imu2] < 0:
+                    mumu_mass = InvMass(mupx_[imu1], mupy_[imu1], mupz_[imu1], mue_[
+                                        imu1], mupx_[imu2], mupy_[imu2], mupz_[imu2], mue_[imu2])
+                    zmumuRecoilPx = -(met_*math.cos(metphi_) +
+                                      mupx_[imu1] + mupx_[imu2])
+                    zmumuRecoilPy = -(met_*math.sin(metphi_) +
+                                      mupy_[imu1] + mupy_[imu2])
+                    ZmumuRecoilPt = math.sqrt(
+                        zmumuRecoilPx**2 + zmumuRecoilPy**2)
+                    if mumu_mass > 60.0 and mumu_mass < 120.0 and ZmumuRecoilPt > 200.0:
+                        ZmumuRecoil = ZmumuRecoilPt
+                        Zmumumass = mumu_mass
+                        ZmumuPhi = mathutil.ep_arctan(
+                            zmumuRecoilPx, zmumuRecoilPy)
+                    zmumuRecoilSmearPx = - \
+                        (met_*math.cos(metphi_) +
+                         mupx_[imu1] + mupx_[imu2])
+                    zmumuRecoilSmearPy = - \
+                        (met_*math.sin(metphi_) +
+                         mupy_[imu1] + mupy_[imu2])
+                    ZmumuRecoilSmearPt = math.sqrt(
+                        zmumuRecoilSmearPx**2 + zmumuRecoilSmearPy**2)
+                    if mumu_mass > 60.0 and mumu_mass < 120.0 and ZmumuRecoilSmearPt > 200.0:
+                        ZmumuRecoilSmear = ZmumuRecoilSmearPt
+            if len(pass_ele_loose_index) == 2:
+                ZRecoilstatus = (ZeeRecoil > 200.0) or (
+                    ZeeRecoilSmear > 200.0)
+            elif len(pass_mu_index) == 2:
+                ZRecoilstatus = (ZmumuRecoil > 200.0) or (
+                    ZmumuRecoilSmear > 200.0)
+            else:
+                ZRecoilstatus = False
+            if debug_:
+                print 'Reached Z CR'
+
+            # ------------------
+            # W CR
+            # ------------------
+            ## for Single electron
+            if len(pass_ele_loose_index) == 1:
+                ele1 = pass_ele_loose_index[0]
+                # transverse mass defined as sqrt{2pT*MET*(1-cos(dphi)}
+                e_mass = MT(elept[ele1], met_, DeltaPhi(elephi[ele1], metphi_))
+                WenuRecoilPx = -(met_*math.cos(metphi_) + elepx_[ele1])
+                WenuRecoilPy = -(met_*math.sin(metphi_) + elepy_[ele1])
+                WenuRecoilPt = math.sqrt(WenuRecoilPx**2 + WenuRecoilPy**2)
+                if WenuRecoilPt > 200.0:
+                   WenuRecoil = WenuRecoilPt
+                   Wenumass = e_mass
+                   WenuPhi = mathutil.ep_arctan(WenuRecoilPx, WenuRecoilPy)
+                WenuRecoilSmearPx = - \
+                    (met_*math.cos(metphi_) + elepx_[ele1])
+                WenuRecoilSmearPy = - \
+                    (met_*math.sin(metphi_) + elepy_[ele1])
+                WenuRecoilSmearPt = math.sqrt(
+                    WenuRecoilSmearPx**2 + WenuRecoilSmearPy**2)
+
+            ## for Single muon
+            if len(pass_mu_index) == 1:
+                mu1 = pass_mu_index[0]
+                # transverse mass defined as sqrt{2pT*MET*(1-cos(dphi)}
+                mu_mass = MT(mupt[mu1], met_, DeltaPhi(muphi[mu1], metphi_))
+                WmunuRecoilPx = -(met_*math.cos(metphi_) + mupx_[mu1])
+                WmunuRecoilPy = -(met_*math.sin(metphi_) + mupy_[mu1])
+                WmunuRecoilPt = math.sqrt(WmunuRecoilPx**2 + WmunuRecoilPy**2)
+                if WmunuRecoilPt > 200.0:
+                   WmunuRecoil = WmunuRecoilPt
+                   Wmunumass = mu_mass
+                   WmunuPhi = mathutil.ep_arctan(
+                       WmunuRecoilPx, WmunuRecoilPy)
+                WmunuRecoilSmearPx = - \
+                    (met_*math.cos(metphi_) + mupx_[mu1])
+                WmunuRecoilSmearPy = - \
+                    (met_*math.sin(metphi_) + mupy_[mu1])
+                WmunuRecoilSmearPt = math.sqrt(
+                    WmunuRecoilSmearPx**2 + WmunuRecoilSmearPy**2)
+
+            if len(pass_ele_loose_index) == 1:
+                WRecoilstatus = (WenuRecoil > 200.0) or (
+                    WenuRecoilSmearPt > 200.0)
+            elif len(pass_mu_index) == 1:
+                WRecoilstatus = (WmunuRecoil > 200.0) or (
+                    WmunuRecoilSmearPt > 200.0)
+            else:
+                WRecoilstatus = False
+            if debug_:
+                print 'Reached W CR'
+
+            # ------------------
+            # Gamma CR
+            # ------------------
+            ## for Single photon
+            if len(pass_pho_index) >= 1:
+                pho1 = pass_pho_index[0]
+                GammaRecoilPx = -(met_*math.cos(metphi_) + phopx_[pho1])
+                GammaRecoilPy = -(met_*math.sin(metphi_) + phopy_[pho1])
+                GammaRecoilPt = math.sqrt(GammaRecoilPx**2 + GammaRecoilPy**2)
+                if GammaRecoilPt > 200.0:
+                    GammaRecoil = GammaRecoilPt
+                    GammaPhi = mathutil.ep_arctan(
+                        GammaRecoilPx, GammaRecoilPy)
+                GammaRecoilSmearPx = - \
+                    (met_*math.cos(metphi_) + phopx_[pho1])
+                GammaRecoilSmearPy = - \
+                    (met_*math.sin(metphi_) + phopy_[pho1])
+                GammaRecoilSmearPt = math.sqrt(
+                    GammaRecoilSmearPx**2 + GammaRecoilSmearPy**2)
+
+            GammaRecoilStatus = (GammaRecoil > 200.0) or (
+                GammaRecoilSmearPt > 200.0)
+            if debug_:
+                print 'Reached Gamma CR'
+
+            if pfmetstatus == False and ZRecoilstatus == False and WRecoilstatus == False and GammaRecoilStatus == False:
+                continue
 
             '''
             *******   *****   *******
@@ -404,11 +634,27 @@ def runbbdm(txtfile):
                *      *          *
             ***       *****      *
             '''
+            '''
             ak4pt = [getPt(ak4px_[ij], ak4py_[ij]) for ij in range(nak4jet_)]
             ak4eta = [getEta(ak4px_[ij], ak4py_[ij], ak4pz_[ij]) for ij in range(nak4jet_)]
             ak4phi = [getPhi(ak4px_[ij], ak4py_[ij]) for ij in range(nak4jet_)]
+            '''
+            ak4pt = getPt(ak4px_, ak4py_)
+            ak4eta = getEta(ak4px_, ak4py_, ak4pz_)
+            ak4phi = getPhi(ak4px_, ak4py_)
+            if runOn2016:
+                #ak4PassID_Calc = [jetID_(ak4CEmEF_[ij],ak4CHadEF_[ij],ak4NEmEF_[ij],ak4NHadEF_[ij],ak4CMulti_[ij],ak4NMultiplicity_[ij],ak4eta[ij])[0] for ij in range(nak4jet_)]
+                ak4PassID_Calc = ak4PassID_
+            if runOn2017:
+                #ak4PassID_Calc = [jetID_(ak4CEmEF_[ij],ak4CHadEF_[ij],ak4NEmEF_[ij],ak4NHadEF_[ij],ak4CMulti_[ij],ak4NMultiplicity_[ij],ak4eta[ij])[1] for ij in range(nak4jet_)]
+                ak4PassID_Calc = ak4PassID_
+            if runOn2018:
+                #ak4PassID_Calc = [jetID_(ak4CEmEF_[ij],ak4CHadEF_[ij],ak4NEmEF_[ij],ak4NHadEF_[ij],ak4CMulti_[ij],ak4NMultiplicity_[ij],ak4eta[ij])[1] for ij in range(nak4jet_)]
+                ak4PassID_Calc = ak4PassID_
 
-            ak4_pt30_eta4p5_IDT  = [ ( (ak4pt[ij] > 30.0) and (abs(ak4eta[ij]) < 4.5) and (ak4PassID_[ij] ) ) for ij in range(nak4jet_)]
+            #ak4_pt30_eta4p5_IDT  =  ( (ak4pt[ij] > 30.0) and (abs(ak4eta[ij]) < 4.5) and (ak4PassID_Calc[ij] ) ) for ij in range(nak4jet_)]
+            ak4_pt30_eta4p5_IDT = boolutil.logical_and3(
+                (ak4pt > 30.0), (numpy.abs(ak4eta) < 4.5), (ak4PassID_Calc))
 
             ##--- jet cleaning
             jetCleanAgainstEle = []
@@ -418,38 +664,15 @@ def runbbdm(txtfile):
 
             if len(ak4_pt30_eta4p5_IDT) > 0:
                 DRCut = 0.4
-                jetCleanAgainstEle = anautil.jetcleaning(ak4_pt30_eta4p5_IDT, ele_pt10_eta2p5_vetoID, ak4eta, eleeta, ak4phi, elephi, DRCut)
-                jetCleanAgainstMu  = anautil.jetcleaning(ak4_pt30_eta4p5_IDT, mu_pt10_eta2p4_looseID_looseISO, ak4eta, mueta, ak4phi, muphi, DRCut)
-                jetCleaned = boolutil.logical_AND_List3(ak4_pt30_eta4p5_IDT,jetCleanAgainstEle, jetCleanAgainstMu)
+                jetCleanAgainstEle = anautil.jetcleaning(
+                    ak4_pt30_eta4p5_IDT, ele_pt10_eta2p5_vetoID, ak4eta, eleeta, ak4phi, elephi, DRCut)
+                jetCleanAgainstMu = anautil.jetcleaning(
+                    ak4_pt30_eta4p5_IDT, mu_pt10_eta2p4_looseID_looseISO, ak4eta, mueta, ak4phi, muphi, DRCut)
+                jetCleaned = boolutil.logical_AND_List3(
+                    ak4_pt30_eta4p5_IDT, jetCleanAgainstEle, jetCleanAgainstMu)
                 pass_jet_index_cleaned = boolutil.WhereIsTrue(jetCleaned)
-                if debug_:print "pass_jet_index_cleaned = ", pass_jet_index_cleaned,"nJets= ",len(ak4px_)
-
-            '''
-            ******      *******   *****   *******
-            *              *      *          *
-            *****  ----    *      ****       *
-            *              *      *          *
-            *           ***       *****      *
-
-            '''
-            fatjetpt = [getPt(fatjetPx[ij], fatjetPy[ij]) for ij in range(fatnJet)]
-            fatjeteta = [getEta(fatjetPx[ij], fatjetPy[ij], fatjetPz[ij]) for ij in range(fatnJet)]
-            fatjetphi = [getPhi(fatjetPx[ij], fatjetPy[ij]) for ij in range(fatnJet)]
-
-            fatjet_pt200_eta2p5_IDT  = [ ( (fatjetpt[ij] > 200.0) and (abs(fatjeteta[ij]) < 2.5) and (fatjetPassID[ij] ) ) for ij in range(fatnJet)]
-
-            ##--- fat jet cleaning
-            fatjetCleanAgainstEle = []
-            fatjetCleanAgainstMu = []
-            pass_fatjet_index_cleaned = []
-
-
-            if len(fatjet_pt200_eta2p5_IDT) > 0:
-                fatjetCleanAgainstEle = anautil.jetcleaning(fatjet_pt200_eta2p5_IDT, ele_pt10_eta2p5_vetoID, fatjeteta, eleeta, fatjetphi, elephi, DRCut)
-                fatjetCleanAgainstMu  = anautil.jetcleaning(fatjet_pt200_eta2p5_IDT, mu_pt10_eta2p4_looseID_looseISO, fatjeteta, mueta, fatjetphi, muphi, DRCut)
-                fatjetCleaned = boolutil.logical_AND_List3(fatjet_pt200_eta2p5_IDT, fatjetCleanAgainstEle, fatjetCleanAgainstMu)
-                pass_fatjet_index_cleaned = boolutil.WhereIsTrue(fatjetCleaned)
-                if debug_:print "pass_fatjet_index_cleaned = ", pass_fatjet_index_cleaned," nJets =   ",len(fatjetpx)
+                if debug_:
+                    print "pass_jet_index_cleaned = ", pass_jet_index_cleaned, "nJets= ", len(ak4px_)
 
             '''
             ********    *        *       *
@@ -459,247 +682,131 @@ def runbbdm(txtfile):
                *     *      *    *       *
                *     *      *     *******
             '''
-            taupt = [getPt(tau_px_[itau], tau_py_[itau]) for itau in range(nTau_)]
-            taueta = [getEta(tau_px_[itau], tau_py_[itau], tau_pz_[itau]) for itau in range(nTau_)]
-            tauphi = [getPhi(tau_px_[itau], tau_py_[itau]) for itau in range(nTau_)]
+            taupt = getPt(tau_px_, tau_py_)
+            taueta = getEta(tau_px_, tau_py_, tau_pz_)
+            tauphi = getPhi(tau_px_, tau_py_)
 
-            tau_eta2p3_iDLdm_pt18 = [ ( (taupt[itau] > 18.0) and (abs(taueta[itau]) < 2.3) and (tau_isLoose_[itau]) and (tau_dm_[itau]) ) for itau in range(nTau_)]
+            tau_eta2p3_iDLdm_pt18 = boolutil.logical_AND_List4(
+                (taupt > 18.0), (numpy.abs(taueta) < 2.3), (tau_isLoose_), (tau_dm_))
 
-            if debug_:print "tau_eta2p3_iDLdm_pt18 = ", tau_eta2p3_iDLdm_pt18
-            tau_eta2p3_iDLdm_pt18_looseEleVeto_looseMuVeto  = [ ( (taupt[itau] > 18.0) and (abs(taueta[itau]) < 2.3) and (tau_isLoose_[itau]) and (tau_dm_[itau]) and (Taudisc_againstLooseElectron[itau]) and (Taudisc_againstLooseMuon[itau]) ) for itau in range(nTau_)]
-            tau_eta2p3_iDLdm_pt18_looseEleVeto_tightMuVeto  = [ ( (taupt[itau] > 18.0) and (abs(taueta[itau]) < 2.3) and (tau_isLoose_[itau]) and (tau_dm_[itau]) and (Taudisc_againstLooseElectron[itau]) and (Taudisc_againstTightMuon[itau]) ) for itau in range(nTau_)]
-            tau_eta2p3_iDLdm_pt18_mediumEleVeto_looseMuVeto = [ ( (taupt[itau] > 18.0) and (abs(taueta[itau]) < 2.3) and (tau_isLoose_[itau]) and (tau_dm_[itau]) and (Taudisc_againstMediumElectron[itau]) and (Taudisc_againstLooseMuon[itau])) for itau in range(nTau_)]
-            tau_eta2p3_iDLdm_pt18_tightEleVeto_looseMuVeto  = [ ( (taupt[itau] > 18.0) and (abs(taueta[itau]) < 2.3) and (tau_isLoose_[itau]) and (tau_dm_[itau]) and (Taudisc_againstTightElectron[itau]) and (Taudisc_againstLooseMuon[itau])) for itau in range(nTau_)]
+            if debug_:
+                print "tau_eta2p3_iDLdm_pt18 = ", tau_eta2p3_iDLdm_pt18
 
-            tau_eta2p3_iDLdm_pt18_looseEleVeto_looseMuVeto_index  = boolutil.WhereIsTrue(tau_eta2p3_iDLdm_pt18_looseEleVeto_looseMuVeto)
-            tau_eta2p3_iDLdm_pt18_looseEleVeto_tightMuVeto_index  = boolutil.WhereIsTrue(tau_eta2p3_iDLdm_pt18_looseEleVeto_tightMuVeto)
-            tau_eta2p3_iDLdm_pt18_mediumEleVeto_looseMuVeto_index = boolutil.WhereIsTrue(tau_eta2p3_iDLdm_pt18_mediumEleVeto_looseMuVeto)
-            tau_eta2p3_iDLdm_pt18_tightEleVeto_looseMuVeto_index  = boolutil.WhereIsTrue(tau_eta2p3_iDLdm_pt18_tightEleVeto_looseMuVeto)
+            tau_eta2p3_iDLdm_pt18_looseEleVeto_looseMuVeto = boolutil.logical_and6((taupt > 18.0), (numpy.abs(
+                taueta) < 2.3), (tau_isLoose_), (tau_dm_), (Taudisc_againstLooseElectron), (Taudisc_againstLooseMuon))
+            tau_eta2p3_iDLdm_pt18_looseEleVeto_tightMuVeto = boolutil.logical_and6((taupt > 18.0), (numpy.abs(
+                taueta) < 2.3), (tau_isLoose_), (tau_dm_), (Taudisc_againstLooseElectron), (Taudisc_againstTightMuon))
+            tau_eta2p3_iDLdm_pt18_mediumEleVeto_looseMuVeto = boolutil.logical_and6((taupt > 18.0), (numpy.abs(
+                taueta) < 2.3), (tau_isLoose_), (tau_dm_), (Taudisc_againstMediumElectron), (Taudisc_againstLooseMuon))
+            tau_eta2p3_iDLdm_pt18_tightEleVeto_looseMuVeto = boolutil.logical_and6((taupt > 18.0), (numpy.abs(
+                taueta) < 2.3), (tau_isLoose_), (tau_dm_), (Taudisc_againstTightElectron), (Taudisc_againstLooseMuon))
+            tau_eta2p3_iDLdm_pt18_tightEleVeto_tightMuVeto = boolutil.logical_and6((taupt > 18.0), (numpy.abs(
+                taueta) < 2.3), (tau_isLoose_), (tau_dm_), (Taudisc_againstTightElectron), (Taudisc_againstTightMuon))
+
+            tau_eta2p3_iDLdm_pt18_looseEleVeto_looseMuVeto_index = boolutil.WhereIsTrue(
+                tau_eta2p3_iDLdm_pt18_looseEleVeto_looseMuVeto)
+            tau_eta2p3_iDLdm_pt18_looseEleVeto_tightMuVeto_index = boolutil.WhereIsTrue(
+                tau_eta2p3_iDLdm_pt18_looseEleVeto_tightMuVeto)
+            tau_eta2p3_iDLdm_pt18_mediumEleVeto_looseMuVeto_index = boolutil.WhereIsTrue(
+                tau_eta2p3_iDLdm_pt18_mediumEleVeto_looseMuVeto)
+            tau_eta2p3_iDLdm_pt18_tightEleVeto_looseMuVeto_index = boolutil.WhereIsTrue(
+                tau_eta2p3_iDLdm_pt18_tightEleVeto_looseMuVeto)
+            tau_eta2p3_iDLdm_pt18_tightEleVeto_tightMuVeto_index = boolutil.WhereIsTrue(
+                tau_eta2p3_iDLdm_pt18_tightEleVeto_tightMuVeto)
 
             tauCleanAgainstEle = []
             tauCleanAgainstMu = []
             pass_tau_index_cleaned_DRBased = []
-            if len(tau_eta2p3_iDLdm_pt18)>0:
-                tauCleanAgainstEle = anautil.jetcleaning(tau_eta2p3_iDLdm_pt18, ele_pt10_eta2p5_looseID,         taueta, eleeta, tauphi, elephi, DRCut)
-                tauCleanAgainstMu  = anautil.jetcleaning(tau_eta2p3_iDLdm_pt18, mu_pt10_eta2p4_looseID_looseISO, taueta, mueta,  tauphi, muphi,  DRCut)
-                tauCleaned = boolutil.logical_AND_List3(tau_eta2p3_iDLdm_pt18 , tauCleanAgainstEle, tauCleanAgainstMu)
-                pass_tau_index_cleaned_DRBased = boolutil.WhereIsTrue(tauCleaned)
-                if debug_:print "pass_tau_index_cleaned_DRBased",pass_tau_index_cleaned_DRBased
+            if len(tau_eta2p3_iDLdm_pt18) > 0:
+                DRCut = 0.4
+                tauCleanAgainstEle = anautil.jetcleaning(
+                    tau_eta2p3_iDLdm_pt18, ele_pt10_eta2p5_looseID,         taueta, eleeta, tauphi, elephi, DRCut)
+                tauCleanAgainstMu = anautil.jetcleaning(
+                    tau_eta2p3_iDLdm_pt18, mu_pt10_eta2p4_looseID_looseISO, taueta, mueta,  tauphi, muphi,  DRCut)
+                tauCleaned = boolutil.logical_AND_List3(
+                    tau_eta2p3_iDLdm_pt18, tauCleanAgainstEle, tauCleanAgainstMu)
+                pass_tau_index_cleaned_DRBased = boolutil.WhereIsTrue(
+                    tauCleaned)
+                if debug_:
+                    print "pass_tau_index_cleaned_DRBased", pass_tau_index_cleaned_DRBased
 
-            ## Fill variables for the CRs.
-            WenuRecoil[0] = -1.0
-            Wenumass[0] = -1.0
-            WenuPhi[0] = -10.
-
-            WmunuRecoil[0] = -1.0
-            Wmunumass[0] = -1.0
-            WmunuPhi[0] = -10.
-
-            ZeeMass[0] = -1.0
-            ZeeRecoil[0] = -1.0
-            ZeePhi[0] = -10.
-
-            ZmumuMass[0] = -1.0
-            ZmumuRecoil[0] = -1.0
-            ZmumuPhi[0] = -10.
-
-            GammaRecoil[0] = -1.0
-            GammaPhi[0]  = -10.
-            if debug_: print 'Reached Fill variables'
-
-            # ------------------
-            # Z CR
-            # ------------------
-            ## for dielectron
-            if len(pass_ele_veto_index) == 2:
-                iele1=pass_ele_veto_index[0]
-                iele2=pass_ele_veto_index[1]
-                if eleCharge_[iele1]*eleCharge_[iele2]<0:
-                    ee_mass = InvMass(elepx_[iele1],elepy_[iele1],elepz_[iele1],elee_[iele1],elepx_[iele2],elepy_[iele2],elepz_[iele2],elee_[iele2])
-                    zeeRecoilPx = -( met_*math.cos(metphi_) + elepx_[iele1] + elepx_[iele2])
-                    zeeRecoilPy = -( met_*math.sin(metphi_) + elepy_[iele1] + elepy_[iele2])
-                    ZeeRecoilPt =  math.sqrt(zeeRecoilPx**2  +  zeeRecoilPy**2)
-                    if ee_mass > 60.0 and ee_mass < 110.0 and ZeeRecoilPt > 200.:
-                        ZeeRecoil[0] = ZeeRecoilPt
-                        ZeeMass[0] = ee_mass
-                        ZeePhi[0] = mathutil.ep_arctan(zeeRecoilPx,zeeRecoilPy)
-            ## for dimu
-            if len(pass_mu_index) ==2:
-                imu1=pass_mu_index[0]
-                imu2=pass_mu_index[1]
-                if muCharge_[imu1]*muCharge_[imu2]<0:
-                    mumu_mass = InvMass(mupx_[imu1],mupy_[imu1],mupz_[imu1],mue_[imu1],mupx_[imu2],mupy_[imu2],mupz_[imu2],mue_[imu2] )
-                    zmumuRecoilPx = -( met_*math.cos(metphi_) + mupx_[imu1] + mupx_[imu2])
-                    zmumuRecoilPy = -( met_*math.sin(metphi_) + mupy_[imu1] + mupy_[imu2])
-                    ZmumuRecoilPt =  math.sqrt(zmumuRecoilPx**2  +  zmumuRecoilPy**2)
-                    if mumu_mass > 60.0 and mumu_mass < 110.0 and ZmumuRecoilPt > 200.:
-                        ZmumuRecoil[0] = ZmumuRecoilPt
-                        ZmumuMass[0] = mumu_mass
-                        ZmumuPhi[0] = mathutil.ep_arctan(zmumuRecoilPx,zmumuRecoilPy)
-            if len(pass_ele_veto_index) == 2:
-                ZRecoilstatus =(ZeeRecoil[0] > 200.)
-            elif len(pass_mu_index) == 2:
-                ZRecoilstatus =(ZmumuRecoil[0] > 200.)
-            else:
-                ZRecoilstatus=False
-            if debug_: print 'Reached Z CR'
-
-            # ------------------
-            # W CR
-            # ------------------
-            ## for Single electron
-            if len(pass_ele_veto_index) == 1:
-               ele1 = pass_ele_veto_index[0]
-               e_mass = MT(elept[ele1],met_, DeltaPhi(elephi[ele1],metphi_)) #transverse mass defined as sqrt{2pT*MET*(1-cos(dphi)}
-               WenuRecoilPx = -( met_*math.cos(metphi_) + elepx_[ele1])
-               WenuRecoilPy = -( met_*math.sin(metphi_) + elepy_[ele1])
-               WenuRecoilPt = math.sqrt(WenuRecoilPx**2  +  WenuRecoilPy**2)
-               if WenuRecoilPt > 200.:
-                   WenuRecoil[0] = WenuRecoilPt
-                   Wenumass[0] = e_mass
-                   WenuPhi[0] = mathutil.ep_arctan(WenuRecoilPx,WenuRecoilPy)
-            ## for Single muon
-            if len(pass_mu_index) == 1:
-               mu1 = pass_mu_index[0]
-               mu_mass = MT(mupt[mu1],met_, DeltaPhi(muphi[mu1],metphi_)) #transverse mass defined as sqrt{2pT*MET*(1-cos(dphi)}
-               WmunuRecoilPx = -( met_*math.cos(metphi_) + mupx_[mu1])
-               WmunuRecoilPy = -( met_*math.sin(metphi_) + mupy_[mu1])
-               WmunuRecoilPt = math.sqrt(WmunuRecoilPx**2  +  WmunuRecoilPy**2)
-               if WmunuRecoilPt > 200.:
-                   WmunuRecoil[0] = WmunuRecoilPt
-                   Wmunumass[0] = mu_mass
-                   WmunuPhi[0] = mathutil.ep_arctan(WmunuRecoilPx,WmunuRecoilPy)
-            if len(pass_ele_veto_index) == 1:
-                WRecoilstatus =(WenuRecoil[0] > 200.)
-            elif len(pass_mu_index) == 1:
-                WRecoilstatus =(WmunuRecoil[0] > 200.)
-            else:
-                WRecoilstatus=False
-            if debug_: print 'Reached W CR'
-
-            # ------------------
-            # Gamma CR
-            # ------------------
-            ## for Single photon
-            if len(pass_pho_index) >= 1:
-               pho1 = pass_pho_index[0]
-               GammaRecoilPx = -( met_*math.cos(metphi_) + phopx_[pho1])
-               GammaRecoilPy = -( met_*math.sin(metphi_) + phopy_[pho1])
-               GammaRecoilPt = math.sqrt(GammaRecoilPx**2  +  GammaRecoilPy**2)
-               if GammaRecoilPt > 200.:
-                   GammaRecoil[0] = GammaRecoilPt
-                   GammaPhi[0] = mathutil.ep_arctan(GammaRecoilPx,GammaRecoilPy)
-            GammaRecoilStatus = (GammaRecoil[0] > 200.)
-            if debug_: print 'Reached Gamma CR'
-
-
-            if pfmetstatus==False and ZRecoilstatus==False and WRecoilstatus==False and GammaRecoilStatus==False: continue
             for ithinjet in pass_jet_index_cleaned:
+                #==================== for flavor 5 ==================================
                 if ak4flavor_[ithinjet]==5:
-                    h_beff_den.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
-                    if ak4deepcsv_[ithinjet] > deepCSVLWP:
-                        h_beff_lWP_num_pass.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                    h_btag_den.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                    if ak4deepcsv_[ithinjet] > LWP:
+                        h_btag_num_pass_lwp.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
                     else:
-                        h_beff_lWP_num_fail.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
-
-                    if ak4deepcsv_[ithinjet] > deepCSVMWP:
-                        h_beff_mWP_num_pass.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                        h_btag_num_fail_lwp.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                    if ak4deepcsv_[ithinjet] > MWP:
+                        h_btag_num_pass_mwp.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
                     else:
-                        h_beff_mWP_num_fail.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                        h_btag_num_fail_mwp.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
 
-                    if ak4deepcsv_[ithinjet] > deepCSVTWP:
-                        h_beff_tWP_num_pass.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
-                    else:
-                        h_beff_tWP_num_fail.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
-
+                #==================== for flavor 4 ==================================
                 if ak4flavor_[ithinjet]==4:
-                    h_ceff_den.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
-                    if ak4deepcsv_[ithinjet] > deepCSVLWP:
-                        h_ceff_lWP_num_pass.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                    h_ctag_den.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                    if ak4deepcsv_[ithinjet] > LWP:
+                        h_ctag_num_pass_lwp.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
                     else:
-                        h_ceff_lWP_num_fail.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                        h_ctag_num_fail_lwp.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                    if ak4deepcsv_[ithinjet] > MWP:
+                        h_ctag_num_pass_mwp.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                    else:
+                        h_ctag_num_fail_mwp.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
 
-                    if ak4deepcsv_[ithinjet] > deepCSVMWP:
-                        h_ceff_mWP_num_pass.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
-                    else:
-                        h_ceff_mWP_num_fail.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
-
-                    if ak4deepcsv_[ithinjet] > deepCSVTWP:
-                        h_ceff_tWP_num_pass.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
-                    else:
-                        h_ceff_tWP_num_fail.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                #==================== for light flavor  ==================================
 
                 if ak4flavor_[ithinjet]!=4 and ak4flavor_[ithinjet]!=5:
-                    h_lighteff_den.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
-                    if ak4deepcsv_[ithinjet] > deepCSVLWP:
-                        h_lighteff_lWP_num_pass.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                    h_lighttag_den.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                    if ak4deepcsv_[ithinjet] > LWP:
+                        h_lighttag_num_pass_lwp.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
                     else:
-                        h_lighteff_lWP_num_fail.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
-
-                    if ak4deepcsv_[ithinjet] > deepCSVMWP:
-                        h_lighteff_mWP_num_pass.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                        h_lighttag_num_fail_lwp.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
+                    if ak4deepcsv_[ithinjet] > MWP:
+                        h_lighttag_num_pass_mwp.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
                     else:
-                        h_lighteff_mWP_num_fail.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
-
-                    if ak4deepcsv_[ithinjet] > deepCSVTWP:
-                        h_lighteff_tWP_num_pass.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
-                    else:
-                        h_lighteff_tWP_num_fail.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
-
-    #outfile = TFile(outfilenameis,'RECREATE')
+                        h_lighttag_num_fail_mwp.Fill(ak4eta[ithinjet],ak4pt[ithinjet])
     outfile.cd()
-    h_total_mcweight.Write()
-    h_total.Write()
-    h_beff_den.Write()
-    h_ceff_den.Write()
-    h_lighteff_den.Write()
-
-    h_beff_lWP_num_pass.Write()
-    h_ceff_lWP_num_pass.Write()
-    h_lighteff_lWP_num_pass.Write()
-    h_beff_lWP_num_fail.Write()
-    h_ceff_lWP_num_fail.Write()
-    h_lighteff_lWP_num_fail.Write()
-
-    h_beff_mWP_num_pass.Write()
-    h_ceff_mWP_num_pass.Write()
-    h_lighteff_mWP_num_pass.Write()
-    h_beff_mWP_num_fail.Write()
-    h_ceff_mWP_num_fail.Write()
-    h_lighteff_mWP_num_fail.Write()
-
-    h_beff_tWP_num_pass.Write()
-    h_ceff_tWP_num_pass.Write()
-    h_lighteff_tWP_num_pass.Write()
-    h_beff_tWP_num_fail.Write()
-    h_ceff_tWP_num_fail.Write()
-    h_lighteff_tWP_num_fail.Write()
-
+    h_btag_num_pass_mwp.Write()
+    h_btag_num_fail_mwp.Write()
+    h_btag_num_pass_lwp.Write()
+    h_btag_num_fail_lwp.Write()
+    h_btag_den.Write()
+    h_ctag_num_pass_mwp.Write()
+    h_ctag_num_fail_mwp.Write()
+    h_ctag_num_pass_lwp.Write()
+    h_ctag_num_fail_lwp.Write()
+    h_ctag_den.Write()
+    h_lighttag_num_pass_mwp.Write()
+    h_lighttag_num_fail_mwp.Write()
+    h_lighttag_num_pass_lwp.Write()
+    h_lighttag_num_fail_lwp.Write()
+    h_lighttag_den.Write()
     outfile.Write()
     print "output written to ", outfilename
     end = time.clock()
     print "%.4gs" % (end-start)
 
-#files=["/eos/cms//store/group/phys_exotica/bbMET/ExoPieElementTuples/MC_2017miniaodV2_V1/WplusH_HToBB_WToLNu_M125_13TeV_powheg_pythia8/DYJetsToLL_M_50_HT_400to600_TuneCP5_13TeV_30K/190825_203128/0000/ExoPieElementTuples_1.root", "/eos/cms//store/group/phys_exotica/bbMET/ExoPieElementTuples/MC_2017miniaodV2_V1/WplusH_HToBB_WToLNu_M125_13TeV_powheg_pythia8/DYJetsToLL_M_50_HT_400to600_TuneCP5_13TeV_30K/190825_203128/0000/ExoPieElementTuples_2.root"]
-
 if __name__ == '__main__':
     if not runInteractive:
-        txtFile=infile
+        txtFile = infile
 
         runbbdm(txtFile)
 
     if runInteractive and runOnTxt:
 	filesPath = dirName+'/*txt'
-	files     = glob.glob(filesPath)
-        n = 8 #submit n txt files at a time, make equal to cores
-        final = [files[i * n:(i + 1) * n] for i in range((len(files) + n - 1) // n )]
+	files = glob.glob(filesPath)
+        n = 1  # submit n txt files at a time, make equal to cores
+        final = [files[i * n:(i + 1) * n]
+                 for i in range((len(files) + n - 1) // n)]
         print 'final', final
         for i in range(len(final)):
             print 'first set', final[i]
 
             try:
-                pool = mp.Pool(8)
-                pool.map(runbbdm,final[i])
+                pool = mp.Pool(1)
+                pool.map(runbbdm, final[i])
                 pool.close()
                 pool.join()
 	    except Exception as e:
@@ -709,23 +816,24 @@ if __name__ == '__main__':
 
     if runInteractive and not runOnTxt:
         ''' following part is for interactive running. This is still under testing because output file name can't be changed at this moment '''
-        inputpath= "/eos/cms/store/group/phys_exotica/bbMET/ExoPieElementTuples/MC_2017miniaodV2_V1/"
+        inputpath = "/eos/cms/store/group/phys_exotica/bbMET/ExoPieElementTuples/MC_2017miniaodV2_V1/"
 
         os.system('rm dirlist.txt')
         os.system("ls -1 "+inputpath+" > dirlist.txt")
 
-        allkeys=[idir.rstrip() for idir in open('dirlist.txt')]
-        alldirs=[inputpath+"/"+idir.rstrip() for idir in open('dirlist.txt')]
+        allkeys = [idir.rstrip() for idir in open('dirlist.txt')]
+        alldirs = [inputpath+"/"+idir.rstrip() for idir in open('dirlist.txt')]
 
         pool = mp.Pool(6)
-        allsample=[]
+        allsample = []
         for ikey in allkeys:
-            dirpath=inputpath+"/"+ikey
-            txtfile=ikey+".txt"
-            os.system ("find "+dirpath+"  -name \"*.root\" | grep -v \"failed\"  > "+txtfile)
-            fileList=TextToList(txtfile)
+            dirpath = inputpath+"/"+ikey
+            txtfile = ikey+".txt"
+            os.system("find "+dirpath +
+                      "  -name \"*.root\" | grep -v \"failed\"  > "+txtfile)
+            fileList = TextToList(txtfile)
             ## this is the list, first element is txt file with all the files and second element is the ikey (kind of sample name identifier)
-            sample_  = [txtfile, ikey]
+            sample_ = [txtfile, ikey]
             ## push information about one sample into global list.
             allsample.append(sample_)
         print allsample

@@ -1,9 +1,4 @@
 
-# coding: utf-8
-
-# In[1]:
-
-
 #!/usr/bin/env python
 import ROOT as ROOT
 from ROOT import TCanvas, TColor, TGaxis, TH1F, TPad, TFile, TGraphAsymmErrors,TLatex,TLine,gStyle,TLegend,TH2D
@@ -17,72 +12,107 @@ import socket
 import json
 datestr = datetime.datetime.now().strftime("%I%p%Y%m%d")
 
+## ----- command line argument
+usage = "analyzer for bb+DM (debugging) "
+parser = argparse.ArgumentParser(description=usage)
+parser.add_argument("-inDir", "--inputDir",  dest="inputDir", default=".")
+parser.add_argument("-D", "--outputdir", dest="outputdir")
+parser.add_argument("-T", "--testing", action="store_true",  dest="testing")
 
-# In[2]:
+args = parser.parse_args()
 
+if args.inputDir:
+    dirName = args.inputDir
+else:
+    print('Please provide an Input Directory')
+    sys.exit()
 
-inputFilename = 'BtagEff_Intput.root'
-inputFile = TFile(inputFilename, 'READ')
-outputFilename = 'bTagEffs_2016.root'
-outputFile = TFile(outputFilename, 'RECREATE')
-binning = [20.,30.,40.,50.,60.,70.,80.,90.,100.,125.,150.,200.,250.,300.,400.,500.,670.,1000.,1500.,2000.,3000]
-nBins = len(binning) -1
-for partonFlavor in ['b','c','light']:
-    denominatorIn = inputFile.Get('h_'+partonFlavor+'eff_den')
-    denominatorOut = TH2D('denominator_' + partonFlavor, '', 10,-2.5,2.5,nBins, array('d',binning))
-    for res in ['pass', 'fail']:
-        numeratorIn    = inputFile.Get('h_'+partonFlavor+'eff_mWP_num_'+res)
-        numeratorOut   = TH2D('numerator_' + partonFlavor+'_'+res, '', 10,-2.5,2.5,nBins, array('d',binning))
-        efficiencyOut  = TH2D('efficiency_' + partonFlavor+'_'+res, '', 10,-2.5,2.5,nBins, array('d',binning))
+if args.outputdir:
+    outputdir = str(args.outputdir)
+else:
+    print('Please provide an Output Directory')
+    sys.exit()
 
-        xShift = denominatorIn.GetXaxis().GetBinWidth(1)/2.
-        yShift = denominatorIn.GetYaxis().GetBinWidth(1)/2.
+if args.testing == None:
+    istest = False
+else:
+    istest = args.testing
 
-        for i in range(1,denominatorOut.GetXaxis().GetNbins()+1):
-          for j in range(1,denominatorOut.GetYaxis().GetNbins()+1):
-            binXMin = denominatorIn.GetXaxis().FindBin(denominatorOut.GetXaxis().GetBinLowEdge(i)+xShift)
-            binXMax = denominatorIn.GetXaxis().FindBin(denominatorOut.GetXaxis().GetBinUpEdge(i)-xShift)
-            binYMinPos = denominatorIn.GetYaxis().FindBin(denominatorOut.GetYaxis().GetBinLowEdge(j)+yShift)
-            binYMaxPos = denominatorIn.GetYaxis().FindBin(denominatorOut.GetYaxis().GetBinUpEdge(j)-yShift)
-            binYMinNeg = denominatorIn.GetYaxis().FindBin(-denominatorOut.GetYaxis().GetBinUpEdge(j)+yShift)
-            binYMaxNeg = denominatorIn.GetYaxis().FindBin(-denominatorOut.GetYaxis().GetBinLowEdge(j)-yShift)
+def runbbdm(txtfile):
+  inputFile = TFile(txtfile, 'READ')
+  outputFilename = 'Output_'txtfile
+  outputFile = TFile(outputFilename, 'RECREATE')
+  outputFile.cd()
+  for partonFlavor in ['btag', 'ctag', 'lighttag']:
+      denominatorIn = inputFile.Get('h_'+partonFlavor+'_den')
+      for wp in ['lwp', 'mwp']:
+          numeratorIn = inputFile.Get('h_'+partonFlavor+'_num_pass_'+wp)
+          print('wp', wp)
 
-            denominator = denominatorIn.Integral(binXMin,binXMax,binYMinPos,binYMaxPos)
-            denominator = denominator + denominatorIn.Integral(binXMin,binXMax,binYMinNeg,binYMaxNeg)
-            numerator = numeratorIn.Integral(binXMin,binXMax,binYMinPos,binYMaxPos)
-            numerator = numerator + numeratorIn.Integral(binXMin,binXMax,binYMinNeg,binYMaxNeg)
+          xShift = denominatorIn.GetXaxis().GetBinWidth(1)/2.
+          yShift = denominatorIn.GetYaxis().GetBinWidth(1)/2.
+          bins_pT = [20.0, 50.0, 80.0, 120.0, 200.0, 300.0, 400.0, 500.0, 700.0, 1000.0]
+          bins_eta = [-2.5, -1.5, -0.5, 0.0, 0.5, 1.5, 2.5]
 
-            if(i==denominatorOut.GetXaxis().GetNbins()): # also add overflow to the last bin in jet pT
-              denominator = denominator + denominatorIn.Integral(binXMax+1,denominatorIn.GetXaxis().GetNbins()+1,binYMinPos,binYMaxPos)
-              denominator = denominator + denominatorIn.Integral(binXMax+1,denominatorIn.GetXaxis().GetNbins()+1,binYMinNeg,binYMaxNeg)
-              numerator = numerator + numeratorIn.Integral(binXMax+1,numeratorIn.GetXaxis().GetNbins()+1,binYMinPos,binYMaxPos)
-              numerator = numerator + numeratorIn.Integral(binXMax+1,numeratorIn.GetXaxis().GetNbins()+1,binYMinNeg,binYMaxNeg)
+          denominatorOut = TH2D('denominator_' + partonFlavor+'_'+wp, '', 6, array('d', bins_eta), 9, array('d', bins_pT))
+          numeratorOut = TH2D('numerator_' + partonFlavor+'_'+wp, '', 6, array('d', bins_eta), 9, array('d', bins_pT))
+          efficiencyOut = TH2D('efficiency_' + partonFlavor+'_'+wp, '', 6, array('d', bins_eta), 9, array('d', bins_pT))
 
-            denominatorOut.SetBinContent(i,j,denominator)
-            numeratorOut.SetBinContent(i,j,numerator)
-            if(denominator>0.): efficiencyOut.SetBinContent(i,j,numerator/denominator)
+          for i in range(1, denominatorOut.GetXaxis().GetNbins()+1):
+            for j in range(1, denominatorOut.GetYaxis().GetNbins()+1):
+              binXMin = denominatorIn.GetXaxis().FindBin(denominatorOut.GetXaxis().GetBinLowEdge(i)+xShift)
+              binXMax = denominatorIn.GetXaxis().FindBin(denominatorOut.GetXaxis().GetBinUpEdge(i)-xShift)
 
-        # check if there are any bins with 0 or 100% efficiency
-        for i in range(1,denominatorOut.GetXaxis().GetNbins()+1):
-          for j in range(1,denominatorOut.GetYaxis().GetNbins()+1):
+              binYMinPos = denominatorIn.GetYaxis().FindBin(denominatorOut.GetYaxis().GetBinLowEdge(j)+yShift)
+              binYMaxPos = denominatorIn.GetYaxis().FindBin(denominatorOut.GetYaxis().GetBinUpEdge(j)-yShift)
 
-            efficiency = efficiencyOut.GetBinContent(i,j)
-            if(efficiency==0. or efficiency==1.):
-              print ('Warning! Bin(%i,%i) for %s jets has a b-tagging efficiency of %.3f'%(i,j,partonFlavor,efficiency))
+              denominator = denominatorIn.Integral(binXMin, binXMax, binYMinPos, binYMaxPos)
+              numerator = numeratorIn.Integral(binXMin, binXMax, binYMinPos, binYMaxPos)
 
-        # set efficiencies in overflow bins
-        for i in range(1,denominatorOut.GetXaxis().GetNbins()+1):
-          efficiencyOut.SetBinContent(i, denominatorOut.GetYaxis().GetNbins()+1, efficiencyOut.GetBinContent(i, denominatorOut.GetYaxis().GetNbins()))
+              # also add overflow to the last bin in jet pT
+              if(i == denominatorOut.GetXaxis().GetNbins()):
+                denominator = denominator + denominatorIn.Integral(binXMax+1, denominatorIn.GetXaxis().GetNbins()+1, binYMinPos, binYMaxPos)
+                numerator = numerator + numeratorIn.Integral(binXMax+1, numeratorIn.GetXaxis().GetNbins()+1, binYMinPos, binYMaxPos)
 
-        for j in range(1,denominatorOut.GetYaxis().GetNbins()+2):
-          efficiencyOut.SetBinContent(denominatorOut.GetXaxis().GetNbins()+1, j, efficiencyOut.GetBinContent(denominatorOut.GetXaxis().GetNbins(), j))
+              denominatorOut.SetBinContent(i, j, denominator)
+              numeratorOut.SetBinContent(i, j, numerator)
+              if(denominator > 0.):
+                efficiencyOut.SetBinContent(i, j, numerator/denominator)
 
-        outputFile.cd()
-        numeratorOut.Write()
-        efficiencyOut.Write()
-    denominatorOut.Write()
-outputFile.Close()
+          # check if there are any bins with 0 or 100% efficiency
+          for i in range(1, denominatorOut.GetXaxis().GetNbins()+1):
+            for j in range(1, denominatorOut.GetYaxis().GetNbins()+1):
+              efficiency = efficiencyOut.GetBinContent(i, j)
+              if(efficiency == 0. or efficiency == 1.):
+                print('Warning! Bin(%i,%i) for %s jets has a b-tagging efficiency of %.3f' %(i, j, partonFlavor, efficiency))
+          # set efficiencies in overflow bins
+          for i in range(1, denominatorOut.GetXaxis().GetNbins()+1):
+            efficiencyOut.SetBinContent(i, denominatorOut.GetYaxis().GetNbins()+1, efficiencyOut.GetBinContent(i, denominatorOut.GetYaxis().GetNbins()))
 
-print ('-------------------------------------------------------------------------------------------')
-print ('successfully created and stored in %s'%outputFilename)
-print ('')
+          for j in range(1, denominatorOut.GetYaxis().GetNbins()+2):
+            efficiencyOut.SetBinContent(denominatorOut.GetXaxis().GetNbins()+1, j, efficiencyOut.GetBinContent(denominatorOut.GetXaxis().GetNbins(), j))
+
+          print('writing eff : ', 'h_'+partonFlavor+'_num_pass_'+wp)
+          efficiencyOut.Write()
+  outputFile.Close()
+  print('-------------------------------------------------------------------------------------------')
+  print('successfully created and stored in %s' % outputFilename)
+  print('')
+
+if __name__ == '__main__':
+  files = [f for f in os.listdir(infile) if f.endswith(".root")]
+  n = mp.cpu_count()  
+  final = [files[i * n:(i + 1) * n] for i in range((len(files) + n - 1) // n)]
+  if istest:
+    runbbdm, final[0]
+  else:
+    for i in range(len(final)):
+      try:
+        pool = mp.Pool(mp.cpu_count())
+        pool.map(runbbdm, final[i])
+        pool.close()
+        pool.join()
+      except Exception as e:
+        print(e)
+        print("Corrupt file inside input txt file is detected! Skipping this txt file:  ", final[i])
+        continue
